@@ -1,25 +1,6 @@
-# ── Training datasets (not needed at runtime) ─────────────────────────────
 *.csv
-
-# ── Duplicate root-level PKL files (models/ folder is the canonical copy) ─
-/churn_model.pkl
-/model_bundle.pkl
-/scaler.pkl
-/feature_names.pkl
-
-# ── Runtime-generated files (created fresh on each cold start) ────────────
-*.db
-predictions_history/
-
-# ── Local development only ─────────────────────────────────────────────────
 START_APP.bat
 .env
-
-# ── Power BI desktop file (binary, not served by Flask) ───────────────────
 static/Customer_Churn_Dashboard.pbix
-
-# ── Python cache ──────────────────────────────────────────────────────────
 __pycache__/
 *.pyc
-*.pyo
-.pytest_cache/
