@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sign In — ChurnMaster Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@700;800;900&display=swap" rel="stylesheet"/>
+<style>
+/* ══ TOKENS ══════════════════════════════════════════════════ */
+:root {
+  --bg:#05080f; --card:rgba(13,20,32,.94);
+  --border:rgba(255,255,255,.07); --border2:rgba(255,255,255,.14);
+  --text:#e2eaf8; --muted:#2d4166; --muted2:#5b7aa8; --muted3:#8aa4cc;
+  --cyan:#00d4ff; --blue:#4d8cf0; --purple:#764ba2;
+  --green:#00c896; --red:#ff3355;
+  --shadow:0 32px 80px rgba(0,0,0,.85);
+  --r:16px;
+}
+html[data-theme="light"] {
+  --bg:#f0f4fb; --card:rgba(255,255,255,.97);
+  --border:rgba(0,0,0,.08); --border2:rgba(0,0,0,.15);
+  --text:#1a2540; --muted:#b0bcd4; --muted2:#718096; --muted3:#4a5568;
+  --cyan:#0099cc; --blue:#3b6fd4; --purple:#6d3fa0;
+  --green:#059669; --red:#dc2626;
+  --shadow:0 20px 60px rgba(0,0,0,.12);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:'Inter',sans-serif;
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  position:relative; overflow:hidden; transition:background .3s,color .3s;
+}
+
+/* Ambient glow */
+html[data-theme="dark"] body::before{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 10%,rgba(0,212,255,.06),transparent),
+    radial-gradient(ellipse 60% 50% at 85% 90%,rgba(118,75,162,.07),transparent),
+    radial-gradient(ellipse 50% 40% at 50% 50%,rgba(77,140,240,.04),transparent);
+}
+html[data-theme="light"] body::before{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 10%,rgba(0,153,204,.06),transparent),
+    radial-gradient(ellipse 60% 50% at 85% 90%,rgba(118,75,162,.05),transparent);
+}
+/* Grid */
+body::after{
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image:
+    linear-gradient(rgba(0,212,255,.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,212,255,.02) 1px,transparent 1px);
+  background-size:52px 52px;
+}
+html[data-theme="light"] body::after{
+  background-image:
+    linear-gradient(rgba(0,100,180,.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,100,180,.03) 1px,transparent 1px);
+}
+
+/* Floating orbs */
+.orb{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0;animation:float 8s ease-in-out infinite;}
+.orb1{width:440px;height:440px;background:rgba(0,212,255,.045);top:-120px;left:-120px}
+.orb2{width:370px;height:370px;background:rgba(118,75,162,.05);bottom:-90px;right:-90px;animation-delay:-3.5s}
+.orb3{width:260px;height:260px;background:rgba(77,140,240,.04);top:40%;left:55%;animation-delay:-6s}
+
+/* Theme toggle */
+.theme-btn{
+  position:fixed;top:22px;right:22px;z-index:200;
+  background:var(--card);border:1.5px solid var(--border2);
+  border-radius:50px;padding:7px 16px;
+  display:flex;align-items:center;gap:8px;
+  cursor:pointer;font-size:11.5px;font-weight:600;
+  color:var(--muted3);font-family:'JetBrains Mono',monospace;
+  letter-spacing:.06em;backdrop-filter:blur(16px);
+  transition:all .2s;box-shadow:0 4px 20px rgba(0,0,0,.2);
+}
+.theme-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+
+/* Wrap & Card */
+.wrap{position:relative;z-index:10;width:100%;max-width:440px;padding:20px;animation:fadeIn .5s ease both;}
+.card{
+  background:var(--card);border:1px solid var(--border2);
+  border-radius:var(--r);
+  box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter:blur(24px);overflow:hidden;
+}
+.card::before{
+  content:'';display:block;height:3px;
+  background:linear-gradient(90deg,var(--cyan),var(--blue),var(--purple),var(--cyan));
+  background-size:200% 100%;animation:shimmer 3s linear infinite;
+}
+
+/* Header */
+.hd{padding:30px 36px 22px;text-align:center;}
+.badge{
+  width:68px;height:68px;border-radius:18px;
+  background:linear-gradient(135deg,var(--cyan),var(--blue));
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:32px;box-shadow:0 0 44px rgba(0,212,255,.3);
+  margin-bottom:16px;animation:breathe 3s ease-in-out infinite;
+}
+.title{font-family:'Syne',sans-serif;font-size:24px;font-weight:900;letter-spacing:-.03em;margin-bottom:8px;}
+.title b{color:var(--cyan)}
+.project-tag{
+  background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.12);
+  border-radius:10px;padding:10px 14px;
+  font-size:11px;color:var(--muted3);line-height:1.65;
+  margin-bottom:10px;text-align:left;
+}
+html[data-theme="light"] .project-tag{background:rgba(0,100,180,.05);border-color:rgba(0,100,180,.12);}
+.project-tag-label{
+  font-family:'JetBrains Mono',monospace;font-size:9px;
+  color:var(--cyan);text-transform:uppercase;letter-spacing:.12em;
+  display:block;margin-bottom:3px;
+}
+.project-tag strong{color:var(--text);font-weight:700}
+.subtitle{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--muted2);text-transform:uppercase;letter-spacing:.14em;}
+
+/* Body */
+.bd{padding:4px 36px 28px;}
+
+/* Alerts */
+.alert{
+  display:flex;align-items:flex-start;gap:10px;
+  border-radius:10px;padding:11px 14px;
+  font-size:12.5px;margin-bottom:18px;
+}
+.alert-err {background:rgba(255,51,85,.08);border:1px solid rgba(255,51,85,.25);color:#ff7090;animation:shake .4s ease;}
+.alert-ok  {background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.25);color:#6ee7b7;}
+.alert-info{background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.2); color:#67e8f9;}
+
+/* Form */
+.fg{margin-bottom:16px}
+.fg label{
+  display:block;font-size:9px;font-weight:700;
+  color:var(--muted3);text-transform:uppercase;letter-spacing:.1em;
+  font-family:'JetBrains Mono',monospace;margin-bottom:7px;
+}
+.fi-wrap{position:relative}
+.fi{
+  width:100%;background:rgba(17,25,40,.85);
+  border:1.5px solid var(--border2);border-radius:10px;
+  padding:12px 44px 12px 15px;color:var(--text);font-size:14px;
+  font-family:'Inter',sans-serif;outline:none;transition:all .2s;
+}
+html[data-theme="light"] .fi{background:rgba(248,250,255,.9);}
+.fi::placeholder{color:var(--muted)}
+.fi:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,212,255,.1)}
+.fi-ico{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--muted2);font-size:16px;pointer-events:none;}
+.eye{
+  position:absolute;right:13px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;color:var(--muted2);
+  font-size:16px;padding:2px;transition:color .15s;
+}
+.eye:hover{color:var(--cyan)}
+
+/* Forgot / links row */
+.links-row{display:flex;align-items:center;justify-content:flex-end;margin-bottom:18px;}
+.link-sm{font-size:11.5px;color:var(--muted2);font-family:'JetBrains Mono',monospace;text-decoration:none;transition:color .15s;}
+.link-sm:hover{color:var(--cyan);}
+
+/* Submit */
+.btn-submit{
+  width:100%;padding:13px;border-radius:10px;
+  background:linear-gradient(135deg,var(--cyan),var(--blue));
+  color:#000;font-weight:800;font-size:14px;
+  font-family:'Inter',sans-serif;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .2s;box-shadow:0 4px 22px rgba(0,212,255,.35);
+  letter-spacing:.01em;
+}
+.btn-submit:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,212,255,.5)}
+.btn-submit:active{transform:scale(.98)}
+
+/* Signup strip */
+.signup-strip{
+  margin-top:18px;padding-top:18px;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  font-size:12.5px;color:var(--muted2);
+}
+.signup-strip a{
+  color:var(--cyan);font-weight:700;text-decoration:none;
+  padding:2px 8px;border-radius:6px;transition:all .15s;
+}
+.signup-strip a:hover{background:rgba(0,212,255,.08);}
+
+/* Footer */
+.ft{
+  padding:12px 36px;border-top:1px solid var(--border);
+  background:rgba(9,13,22,.5);
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;color:var(--muted2);font-family:'JetBrains Mono',monospace;
+}
+html[data-theme="light"] .ft{background:rgba(240,244,251,.7);}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite}
+.chips{display:flex;gap:4px;}
+.chip{
+  font-size:9px;padding:2px 6px;border-radius:4px;
+  background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.15);color:var(--muted3);
+}
+
+/* Animations */
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes breathe{0%,100%{box-shadow:0 0 44px rgba(0,212,255,.3)}50%{box-shadow:0 0 64px rgba(0,212,255,.5)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-22px)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+
+<button class="theme-btn" onclick="toggleTheme()">
+  <span id="ti">☀️</span><span id="tl">Light Mode</span>
+</button>
+
+<div class="wrap">
+  <div class="card">
+
+    <div class="hd">
+      <div class="badge">🧠</div>
+      <div class="title">Churn<b>Master</b> Pro</div>
+      <div class="project-tag">
+        <span class="project-tag-label">Research Project</span>
+        <strong>Intelligent Customer Churn Prediction System</strong> Using Machine
+        Learning Algorithms and <strong>Behavior Analysis for Proactive
+        Retention Strategies</strong>
+      </div>
+      <div class="subtitle">Sign in to your account</div>
+    </div>
+
+    <div class="bd">
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="alert {{ 'alert-ok' if cat=='success' else 'alert-err' if cat=='error' else 'alert-info' }}">
+              <span>{{ '✅' if cat=='success' else '⚠️' if cat=='error' else 'ℹ️' }}</span>
+              <span>{{ msg }}</span>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      {% if error %}
+        <div class="alert alert-err"><span>⚠️</span><span>{{ error }}</span></div>
+      {% endif %}
+
+      <form method="POST" action="/login" autocomplete="on" id="loginForm">
+
+        <div class="fg">
+          <label for="username">Username</label>
+          <div class="fi-wrap">
+            <input class="fi" type="text" id="username" name="username"
+              placeholder="Enter your username"
+              autocomplete="username" required autofocus/>
+            <span class="fi-ico">👤</span>
+          </div>
+        </div>
+
+        <div class="fg" style="margin-bottom:8px">
+          <label for="password">Password</label>
+          <div class="fi-wrap">
+            <input class="fi" type="password" id="password" name="password"
+              placeholder="Enter your password"
+              autocomplete="current-password" required/>
+            <button type="button" class="eye" id="eyeBtn" onclick="toggleEye()">👁️</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit" id="submitBtn" style="margin-top:20px">
+          🔐 Sign In
+        </button>
+
+        <div class="signup-strip">
+          Don't have an account?
+          <a href="{{ url_for('main.signup') }}">Create one →</a>
+        </div>
+
+      </form>
+    </div>
+
+    <div class="ft">
+      <div style="display:flex;align-items:center;gap:6px;"><div class="dot"></div> Secured Session</div>
+      <div class="chips">
+        <span class="chip">RF</span><span class="chip">ET</span>
+        <span class="chip">GB</span><span class="chip">LR</span>
+        <span class="chip">SVM</span><span class="chip">ADA</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Theme
+const html=document.documentElement;
+function setTheme(t){
+  html.setAttribute('data-theme',t);
+  const d=t==='dark';
+  document.getElementById('ti').textContent=d?'☀️':'🌙';
+  document.getElementById('tl').textContent=d?'Light Mode':'Dark Mode';
+  localStorage.setItem('churnmaster-theme',t);
+}
+function toggleTheme(){setTheme(html.getAttribute('data-theme')==='dark'?'light':'dark');}
+setTheme(localStorage.getItem('churnmaster-theme')||'dark');
+
+// Eye toggle
+function toggleEye(){
+  const i=document.getElementById('password');
+  const b=document.getElementById('eyeBtn');
+  i.type=i.type==='password'?'text':'password';
+  b.textContent=i.type==='password'?'👁️':'🙈';
+}
+
+// Loading on submit
+document.getElementById('loginForm').addEventListener('submit',function(){
+  const b=document.getElementById('submitBtn');
+  b.innerHTML='<span style="animation:spin .6s linear infinite;display:inline-block">⟳</span> Signing in…';
+  b.disabled=true;
+});
+
+// Card tilt
+const card=document.querySelector('.card');
+card.addEventListener('mousemove',e=>{
+  const r=card.getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width-.5;
+  const y=(e.clientY-r.top)/r.height-.5;
+  card.style.transform=`perspective(900px) rotateY(${x*3}deg) rotateX(${-y*3}deg)`;
+});
+card.addEventListener('mouseleave',()=>{card.style.transform='';});
+</script>
+</body>
+</html>

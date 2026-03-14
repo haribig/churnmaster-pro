@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Train Custom Model — ChurnMaster Pro</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<style>
+/* ── UPLOAD ZONE ─────────────────────────────────────── */
+.upload-zone {
+  border: 2px dashed var(--border2);
+  border-radius: var(--radius);
+  padding: 48px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .25s;
+  background: rgba(0,212,255,.02);
+  position: relative;
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--cyan);
+  background: rgba(0,212,255,.05);
+  box-shadow: 0 0 0 4px rgba(0,212,255,.08);
+}
+.upload-zone.has-file {
+  border-color: var(--green);
+  border-style: solid;
+  background: rgba(16,185,129,.04);
+}
+.upload-zone.error {
+  border-color: var(--red);
+  background: rgba(239,68,68,.04);
+}
+.upload-icon { font-size: 52px; margin-bottom: 14px; display: block; }
+.upload-title { font-family: var(--font-head); font-size: 18px; font-weight: 800; margin-bottom: 8px; }
+.upload-sub   { font-size: 12px; color: var(--muted2); line-height: 1.65; }
+.upload-input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+
+/* ── EXAMPLES GRID ───────────────────────────────────── */
+.examples-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.example-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 16px 14px;
+  cursor: pointer; transition: all .2s; text-align: center;
+}
+.example-card:hover { border-color: var(--cyan); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.2); }
+.example-card.active { border-color: var(--cyan); background: rgba(0,212,255,.06); }
+.example-icon  { font-size: 28px; margin-bottom: 8px; display: block; }
+.example-name  { font-family: var(--font-head); font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+.example-desc  { font-size: 10px; color: var(--muted2); line-height: 1.5; }
+.example-badge {
+  display: inline-block; margin-top: 6px;
+  font-size: 9px; padding: 2px 8px; border-radius: 50px;
+  font-family: var(--font-mono); text-transform: uppercase;
+}
+
+/* ── CSV PREVIEW TABLE ───────────────────────────────── */
+.preview-table-wrap {
+  overflow-x: auto; border-radius: 8px;
+  border: 1px solid var(--border2); max-height: 220px; overflow-y: auto;
+}
+.preview-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.preview-table th {
+  background: var(--card2); padding: 8px 12px;
+  font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em; color: var(--muted2);
+  border-bottom: 1px solid var(--border2); white-space: nowrap; position: sticky; top: 0;
+}
+.preview-table th.target-col { color: var(--cyan); border-bottom: 2px solid var(--cyan); }
+.preview-table td {
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+  color: var(--muted2); white-space: nowrap; max-width: 140px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.preview-table td.target-val { color: var(--cyan); font-weight: 600; }
+.preview-table tr:last-child td { border-bottom: none; }
+html[data-theme="light"] .preview-table th { background: #f0f4ff; }
+
+/* ── TARGET COLUMN SELECTOR ──────────────────────────── */
+.col-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.col-pill {
+  padding: 5px 14px; border-radius: 50px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10px; transition: all .15s;
+  border: 1px solid var(--border2); background: var(--card);
+  color: var(--muted2);
+}
+.col-pill:hover  { border-color: var(--cyan); color: var(--cyan); }
+.col-pill.active { background: rgba(0,212,255,.12); border-color: var(--cyan); color: var(--cyan); font-weight: 700; }
+.col-pill.suggested { border-color: rgba(16,185,129,.5); color: var(--green); }
+.col-pill.suggested::after { content: ' ★'; font-size: 9px; }
+
+/* ── CLASS BALANCE BAR ───────────────────────────────── */
+.balance-bar { height: 10px; border-radius: 5px; overflow: hidden; display: flex; margin-top: 8px; }
+.balance-seg { transition: width .4s; }
+
+/* ── PROGRESS BAR ────────────────────────────────────── */
+.progress-wrap {
+  background: rgba(0,0,0,.2); border-radius: 50px; height: 10px;
+  overflow: hidden; margin: 12px 0;
+}
+.progress-fill {
+  height: 100%; border-radius: 50px; transition: width .5s ease;
+  background: linear-gradient(90deg, var(--cyan), var(--blue));
+}
+
+/* ── TRAINING LOG ────────────────────────────────────── */
+.train-log {
+  background: rgba(0,0,0,.35); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 14px 16px;
+  font-family: var(--font-mono); font-size: 11px;
+  max-height: 260px; overflow-y: auto;
+  line-height: 1.85; color: var(--muted2);
+}
+.train-log .log-line.done    { color: var(--green); }
+.train-log .log-line.error   { color: var(--red); }
+.train-log .log-line.running { color: var(--cyan); }
+html[data-theme="light"] .train-log { background: rgba(0,0,0,.04); }
+
+/* ── RESULT CARD ─────────────────────────────────────── */
+.result-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 16px; }
+.result-metric {
+  text-align: center; padding: 14px; border-radius: 10px;
+  background: var(--card); border: 1px solid var(--border);
+}
+.result-metric-val { font-family: var(--font-head); font-size: 22px; font-weight: 800; }
+.result-metric-lbl { font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; font-family: var(--font-mono); }
+
+/* ── CURRENT MODEL BANNER ────────────────────────────── */
+.current-model-bar {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  padding: 14px 20px; border-radius: var(--radius);
+  background: rgba(16,185,129,.07); border: 1px solid rgba(16,185,129,.3);
+  margin-bottom: 20px;
+}
+
+/* ── SECTION HEADERS ─────────────────────────────────── */
+.section-hd {
+  font-family: var(--font-head); font-size: 15px; font-weight: 800;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.section-hd span { font-size: 10px; color: var(--muted2); font-family: var(--font-mono); font-weight: 400; }
+
+/* ── STEP BADGE ──────────────────────────────────────── */
+.step-badge {
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--cyan), var(--blue));
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-head); font-size: 12px; font-weight: 800; color: #000;
+}
+
+@media(max-width:900px){ .examples-grid{grid-template-columns:1fr 1fr} .result-grid{grid-template-columns:1fr 1fr} }
+@media(max-width:600px){ .examples-grid{grid-template-columns:1fr} .result-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+<!-- ═══ SIDEBAR ════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <div class="sb-logo-icon">🎯</div>
+      <div>
+        <div class="sb-logo-name">Churn<span>Master</span></div>
+        <div class="sb-logo-sub">Pro Analytics Platform</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-user">
+    <div class="sb-avatar">{{ username[0].upper() }}</div>
+    <div>
+      <div class="sb-user-name">{{ username }}</div>
+      <div class="sb-user-role">analyst</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section-label">INTELLIGENCE</div>
+    <a class="sb-nav-item" href="{{ url_for('main.dashboard') }}"><span class="sb-nav-icon">📊</span>Analytics</a>
+    <a class="sb-nav-item" href="{{ url_for('main.history') }}"><span class="sb-nav-icon">🕓</span>History</a>
+    <a class="sb-nav-item" href="{{ url_for('main.powerbi_page') }}"><span class="sb-nav-icon">📡</span>Power BI<span style="margin-left:auto;background:rgba(242,200,17,.15);border:1px solid rgba(242,200,17,.3);color:#F2C811;font-size:8px;padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">NEW</span></a>
+    <div class="sb-section-label">PREDICTIONS</div>
+    <a class="sb-nav-item" href="{{ url_for('main.predict') }}"><span class="sb-nav-icon">🔮</span>Single Predict</a>
+    <a class="sb-nav-item" href="{{ url_for('main.bulk') }}"><span class="sb-nav-icon">📂</span>Bulk Predict</a>
+    <div class="sb-section-label">TRAINING</div>
+    <a class="sb-nav-item active" href="{{ url_for('main.train_page') }}"><span class="sb-nav-icon">🧬</span>Train Custom Model<span style="margin-left:auto;background:rgba(139,92,246,.15);border:1px solid rgba(139,92,246,.3);color:#8b5cf6;font-size:8px;padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">NEW</span></a>
+    <div class="sb-section-label">EXPORT</div>
+    <a class="sb-nav-item" href="{{ url_for('main.download_pbix') }}"><span class="sb-nav-icon">📥</span>Download .pbix</a>
+    <a class="sb-nav-item" href="{{ url_for('main.export_csv') }}"><span class="sb-nav-icon">📤</span>Export CSV</a>
+  </nav>
+  <div class="sb-footer">
+    <a href="{{ url_for('main.logout') }}" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">🚪 Sign Out</a>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ════════════════════════════════════════════════════ -->
+<div class="main-content">
+  <header class="topbar">
+    <div class="topbar-title" style="display:flex;align-items:center;gap:10px;">
+      🧬 Custom Dataset Trainer
+      <span style="background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);color:#8b5cf6;font-family:var(--font-mono);font-size:10px;padding:3px 10px;border-radius:6px;">6 Models + Ensemble</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-pill"><div class="dot"></div>Universal CSV</div>
+      <a href="{{ url_for('main.predict') }}" class="btn btn-ghost btn-sm">🔮 Predict</a>
+      <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost btn-sm">← Dashboard</a>
+    </div>
+  </header>
+
+  <div class="page-body">
+
+    <!-- CURRENT MODEL STATUS -->
+    {% if model_info %}
+    <div class="current-model-bar anim-up">
+      <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">✅</span><span style="font-family:var(--font-head);font-size:13px;font-weight:800;color:#10b981;">Current Model Active</span></div>
+      <div style="width:1px;height:28px;background:var(--border);"></div>
+      <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;">Domain</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;">{{ model_info.domain }}</div></div>
+      <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;">Accuracy</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;color:#00d4ff;">{{ model_info.accuracy }}%</div></div>
+      <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;">AUC</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;color:#00d4ff;">{{ model_info.auc }}%</div></div>
+      <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;">Features</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;">{{ model_info.features }}</div></div>
+      <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;">Trained On</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;">{{ "{:,}".format(model_info.samples) }} rows</div></div>
+      <a href="{{ url_for('main.predict') }}" class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:11px;">🔮 Use This Model →</a>
+    </div>
+    {% endif %}
+
+    <!-- STEP 1: EXAMPLES -->
+    <div class="card anim-up" style="padding:24px;margin-bottom:16px;">
+      <div class="section-hd">
+        <div class="step-badge">1</div>
+        Choose a Dataset to Train On
+        <span>— use any of these examples or upload your own CSV below</span>
+      </div>
+
+      <div class="examples-grid">
+
+        <div class="example-card" onclick="selectExample('telecom')" id="ex-telecom">
+          <span class="example-icon">📱</span>
+          <div class="example-name">Telecom Churn</div>
+          <div class="example-desc">Contract type, internet service, payment method. Classic telecom customer churn.</div>
+          <span class="example-badge" style="background:rgba(0,212,255,.12);color:#00d4ff;border:1px solid rgba(0,212,255,.3);">300 rows</span>
+        </div>
+
+        <div class="example-card" onclick="selectExample('bank')" id="ex-bank">
+          <span class="example-icon">🏦</span>
+          <div class="example-name">Bank Churn</div>
+          <div class="example-desc">Country, age, credit score, balance, products. Bank customer churn across 3 countries.</div>
+          <span class="example-badge" style="background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.3);">10,000 rows</span>
+        </div>
+
+        <div class="example-card" onclick="selectExample('hr')" id="ex-hr">
+          <span class="example-icon">👔</span>
+          <div class="example-name">HR Attrition</div>
+          <div class="example-desc">Department, job role, overtime, salary. IBM employee attrition dataset.</div>
+          <span class="example-badge" style="background:rgba(139,92,246,.12);color:#8b5cf6;border:1px solid rgba(139,92,246,.3);">1,470 rows</span>
+        </div>
+
+        <div class="example-card" onclick="triggerUpload()" id="ex-custom" style="border-style:dashed;">
+          <span class="example-icon">📤</span>
+          <div class="example-name">Your Own CSV</div>
+          <div class="example-desc">Netflix, e-commerce, healthcare, gaming, SaaS — any CSV with a churn/target column works.</div>
+          <span class="example-badge" style="background:rgba(242,200,17,.12);color:#F2C811;border:1px solid rgba(242,200,17,.3);">Any size</span>
+        </div>
+
+      </div>
+
+      <!-- Supported datasets info -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">
+        <span style="font-size:10px;color:var(--muted2);font-family:var(--font-mono);">Works with:</span>
+        {% for ds in ['Netflix / Streaming','E-Commerce','SaaS / Subscription','Healthcare','Gaming','Insurance','Retail','Hotel','Airline','Any binary target'] %}
+        <span style="font-size:9px;background:var(--card2);border:1px solid var(--border);padding:2px 8px;border-radius:50px;color:var(--muted2);font-family:var(--font-mono);">{{ ds }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- STEP 2: UPLOAD -->
+    <div class="card anim-up" style="padding:24px;margin-bottom:16px;">
+      <div class="section-hd">
+        <div class="step-badge">2</div>
+        Upload Your CSV
+        <span id="fileNameBadge"></span>
+      </div>
+
+      <div class="upload-zone" id="uploadZone" onclick="triggerUpload()">
+        <input type="file" class="upload-input" id="csvFileInput" accept=".csv" onchange="handleFileSelect(this.files[0])"/>
+        <span class="upload-icon" id="uploadIcon">📂</span>
+        <div class="upload-title" id="uploadTitle">Drop your CSV here or click to browse</div>
+        <div class="upload-sub" id="uploadSub">
+          Supports any CSV with a churn / attrition / target column.<br>
+          Handles numeric, categorical, mixed data. Missing values imputed automatically.<br>
+          <strong>Max size:</strong> 100MB · <strong>Rows:</strong> up to 500,000
+        </div>
+      </div>
+
+      <!-- File preview -->
+      <div id="previewSection" style="display:none;margin-top:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-family:var(--font-head);font-size:13px;font-weight:700;">📋 Preview</div>
+          <div id="fileMeta" style="font-family:var(--font-mono);font-size:10px;color:var(--muted2);"></div>
+        </div>
+        <div class="preview-table-wrap">
+          <table class="preview-table" id="previewTable"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: TARGET COLUMN -->
+    <div class="card anim-up" style="padding:24px;margin-bottom:16px;" id="targetSection" style="display:none;">
+      <div class="section-hd">
+        <div class="step-badge">3</div>
+        Pick Your Target Column
+        <span>— the column your model will learn to predict</span>
+      </div>
+
+      <div style="font-size:12px;color:var(--muted2);margin-bottom:10px;">
+        The <strong style="color:var(--text)">target column</strong> is the one you want to predict (churn, attrition, cancellation, default, etc.).
+        Columns with ⭐ were auto-detected as likely targets.
+      </div>
+      <div class="col-picker" id="colPicker"></div>
+
+      <!-- Class balance display -->
+      <div id="balanceSection" style="display:none;margin-top:16px;">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Class Balance</div>
+        <div id="balanceText" style="font-size:12px;margin-bottom:6px;"></div>
+        <div class="balance-bar" id="balanceBar"></div>
+      </div>
+    </div>
+
+    <!-- STEP 4: TRAIN -->
+    <div class="card anim-up" style="padding:24px;margin-bottom:16px;" id="trainSection">
+      <div class="section-hd">
+        <div class="step-badge">4</div>
+        Train the Model
+        <span>— 6 algorithms + Voting Ensemble, class balancing, cross-validation</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;" class="anim-up">
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+          <div style="font-size:20px;margin-bottom:6px;">🤖</div>
+          <div style="font-family:var(--font-head);font-size:12px;font-weight:700;margin-bottom:4px;">6 Models + Ensemble</div>
+          <div style="font-size:10px;color:var(--muted2);">LR · RF · ExtraTrees · GBM · AdaBoost · SVM → Soft Voting Ensemble</div>
+        </div>
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+          <div style="font-size:20px;margin-bottom:6px;">⚖️</div>
+          <div style="font-family:var(--font-head);font-size:12px;font-weight:700;margin-bottom:4px;">Auto Class Balancing</div>
+          <div style="font-size:10px;color:var(--muted2);">SMOTE-equivalent oversampling handles imbalanced datasets automatically</div>
+        </div>
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+          <div style="font-size:20px;margin-bottom:6px;">🔄</div>
+          <div style="font-family:var(--font-head);font-size:12px;font-weight:700;margin-bottom:4px;">Auto Feature Engineering</div>
+          <div style="font-size:10px;color:var(--muted2);">One-hot encoding, median imputation, StandardScaler — fully automatic</div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="trainBtn" onclick="startTraining()"
+        style="width:100%;justify-content:center;padding:14px;font-size:15px;font-weight:800;
+               background:linear-gradient(135deg,#8b5cf6,#6d28d9);border:none;gap:10px;"
+        disabled>
+        🧬 Train Model on This Dataset
+      </button>
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-align:center;margin-top:8px;" id="trainHint">
+        Upload a CSV and select a target column first
+      </div>
+    </div>
+
+    <!-- TRAINING PROGRESS (hidden until training) -->
+    <div class="card anim-up" style="padding:24px;margin-bottom:16px;" id="progressSection" style="display:none;">
+      <div class="section-hd">
+        🔄 Training Progress
+        <span id="progressPct" style="color:var(--cyan);font-family:var(--font-mono);font-size:12px;font-weight:700;">0%</span>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+      </div>
+      <div class="train-log" id="trainLog">
+        <div class="log-line" style="color:var(--muted2);">Waiting for training to start...</div>
+      </div>
+    </div>
+
+    <!-- TRAINING RESULT (hidden until done) -->
+    <div id="resultSection" style="display:none;">
+      <div class="card anim-up" style="padding:24px;background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.25);">
+        <div class="section-hd" style="color:#10b981;">
+          🎉 Training Complete — New Model Active!
+        </div>
+        <div class="result-grid" id="resultGrid"></div>
+        <div style="display:flex;gap:12px;margin-top:20px;flex-wrap:wrap;">
+          <a href="{{ url_for('main.predict') }}" class="btn btn-primary" style="background:linear-gradient(135deg,#10b981,#059669);border:none;flex:1;justify-content:center;padding:12px;">
+            🔮 Start Predicting with New Model →
+          </a>
+          <a href="{{ url_for('main.bulk') }}" class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;">
+            📂 Bulk Predict CSV →
+          </a>
+          <button onclick="resetForm()" class="btn btn-ghost" style="padding:12px;">
+            🔄 Train Another Dataset
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-body -->
+</div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<button class="global-theme-btn" onclick="toggleTheme()">
+  <span id="gti">☀️</span><span id="gtl">Light</span>
+</button>
+
+<script>
+// ── THEME ─────────────────────────────────────────────────────
+const html = document.documentElement;
+function setTheme(t){ html.setAttribute('data-theme',t); const d=t==='dark'; document.getElementById('gti').textContent=d?'☀️':'🌙'; document.getElementById('gtl').textContent=d?'Light':'Dark'; localStorage.setItem('churnmaster-theme',t); }
+function toggleTheme(){ setTheme(html.getAttribute('data-theme')==='dark'?'light':'dark'); }
+setTheme(localStorage.getItem('churnmaster-theme')||'dark');
+
+// ── STATE ──────────────────────────────────────────────────────
+let currentFile     = null;
+let currentTarget   = null;
+let binaryColsData  = {};
+let isTraining      = false;
+let pollInterval    = null;
+
+// ── EXAMPLE DATASETS ───────────────────────────────────────────
+const EXAMPLE_DATASETS = {
+  telecom: { name:'Telecom Churn', file:'customer_churn_prediction_dataset.csv', target:'Churn' },
+  bank:    { name:'Bank Churn',    file:'Bank Customer Churn Prediction.csv',    target:'churn' },
+  hr:      { name:'HR Attrition', file:'WA_Fn-UseC_-HR-Employee-Attrition.csv', target:'Attrition' },
+};
+
+function selectExample(key) {
+  document.querySelectorAll('.example-card').forEach(c => c.classList.remove('active'));
+  document.getElementById('ex-'+key).classList.add('active');
+  const ds = EXAMPLE_DATASETS[key];
+  if(!ds) return;
+
+  // Fetch preview from server for example datasets
+  fetch('/api/dataset/'+key)
+    .then(r => r.json())
+    .then(data => {
+      if(data.error){ alert(data.error); return; }
+      // Build synthetic preview response
+      const records = data.records ? data.records.slice(0,8) : [];
+      const cols = records.length > 0 ? Object.keys(records[0]) : [];
+      renderPreview({
+        columns: cols,
+        total_rows: data.total_records,
+        suggested_target: ds.target,
+        domain: key,
+        sample: records,
+        binary_cols: {},
+        filename: ds.file,
+      });
+      // Auto-select the known target
+      setTargetCol(ds.target);
+    })
+    .catch(e => alert('Could not load example: ' + e));
+}
+
+// ── FILE UPLOAD ────────────────────────────────────────────────
+function triggerUpload() {
+  document.getElementById('csvFileInput').click();
+}
+
+function handleFileSelect(file) {
+  if(!file) return;
+  currentFile = file;
+
+  const zone = document.getElementById('uploadZone');
+  zone.classList.add('has-file');
+  document.getElementById('uploadIcon').textContent = '⏳';
+  document.getElementById('uploadTitle').textContent = 'Analysing CSV...';
+  document.getElementById('uploadSub').textContent = file.name;
+
+  const fd = new FormData();
+  fd.append('csv_file', file);
+
+  fetch('/api/csv_preview', { method:'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if(data.error) {
+        zone.classList.remove('has-file');
+        zone.classList.add('error');
+        document.getElementById('uploadIcon').textContent = '❌';
+        document.getElementById('uploadTitle').textContent = 'Error reading CSV';
+        document.getElementById('uploadSub').textContent = data.error;
+        return;
+      }
+      document.getElementById('uploadIcon').textContent = '✅';
+      document.getElementById('uploadTitle').textContent = '✅ ' + data.filename + ' loaded';
+      document.getElementById('uploadSub').textContent = data.total_rows.toLocaleString() + ' rows · ' + data.columns.length + ' columns · auto-detected domain: ' + data.domain;
+      binaryColsData = data.binary_cols || {};
+      renderPreview(data);
+      document.querySelectorAll('.example-card').forEach(c => c.classList.remove('active'));
+      document.getElementById('ex-custom').classList.add('active');
+    })
+    .catch(e => {
+      document.getElementById('uploadTitle').textContent = 'Upload failed';
+      document.getElementById('uploadSub').textContent = e;
+    });
+}
+
+// Drag and drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', e => { zone.classList.remove('drag-over'); });
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if(f) { document.getElementById('csvFileInput').files = e.dataTransfer.files; handleFileSelect(f); }
+});
+
+// ── RENDER PREVIEW ─────────────────────────────────────────────
+function renderPreview(data) {
+  const sec = document.getElementById('previewSection');
+  sec.style.display = 'block';
+
+  document.getElementById('fileMeta').textContent =
+    data.total_rows.toLocaleString() + ' rows · ' + data.columns.length + ' columns · domain: ' + (data.domain||'auto');
+
+  const badge = document.getElementById('fileNameBadge');
+  badge.innerHTML = '<span style="font-size:10px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);color:#00d4ff;padding:2px 10px;border-radius:50px;font-family:var(--font-mono);">' + (data.filename||'uploaded.csv') + '</span>';
+
+  const tgt = (data.suggested_target||'').toLowerCase();
+  const table = document.getElementById('previewTable');
+  let html = '<thead><tr>';
+  data.columns.forEach(col => {
+    const isTarget = col.toLowerCase() === tgt;
+    html += `<th class="${isTarget?'target-col':''}">${col}${isTarget?' 🎯':''}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  (data.sample||[]).forEach(row => {
+    html += '<tr>';
+    data.columns.forEach(col => {
+      const isTarget = col.toLowerCase() === tgt;
+      html += `<td class="${isTarget?'target-val':''}">${row[col]??''}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  // Build column picker
+  renderColPicker(data.columns, data.suggested_target, data.binary_cols||{});
+  document.getElementById('targetSection').style.display = 'block';
+}
+
+// ── COLUMN PICKER ──────────────────────────────────────────────
+function renderColPicker(columns, suggested, binaryCols) {
+  const picker = document.getElementById('colPicker');
+  const sugLower = (suggested||'').toLowerCase();
+  picker.innerHTML = '';
+  columns.forEach(col => {
+    const isSuggested = col.toLowerCase() === sugLower;
+    const pill = document.createElement('div');
+    pill.className = 'col-pill' + (isSuggested ? ' suggested' : '');
+    pill.textContent = col;
+    if(isSuggested) pill.title = 'Auto-detected as target column';
+    pill.onclick = () => setTargetCol(col);
+    picker.appendChild(pill);
+  });
+  if(suggested) setTargetCol(suggested);
+  binaryColsData = binaryCols;
+}
+
+function setTargetCol(col) {
+  currentTarget = col;
+  document.querySelectorAll('.col-pill').forEach(p => {
+    p.classList.toggle('active', p.textContent === col);
+  });
+  updateBalance(col);
+  updateTrainBtn();
+  // Update preview table highlight
+  const ths = document.querySelectorAll('.preview-table th');
+  const tds_all = document.querySelectorAll('.preview-table td');
+  ths.forEach((th, i) => {
+    const isTarget = th.textContent.replace(' 🎯','').trim() === col;
+    th.className = isTarget ? 'target-col' : '';
+    if(isTarget) th.textContent = col + ' 🎯';
+    else th.textContent = col.replace(' 🎯','');
+    // fix headers
+    ths[i].textContent = th.textContent;
+  });
+}
+
+function updateBalance(col) {
+  const data = binaryColsData[col];
+  const sec = document.getElementById('balanceSection');
+  if(!data || Object.keys(data).length === 0) { sec.style.display='none'; return; }
+  sec.style.display = 'block';
+  const total = Object.values(data).reduce((a,b)=>a+b, 0);
+  const entries = Object.entries(data).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('balanceText').innerHTML = entries.map(([k,v]) =>
+    `<span style="font-weight:700;">${k}</span>: ${v.toLocaleString()} (${(v/total*100).toFixed(1)}%)`
+  ).join('   ·   ');
+  const colors = ['#00d4ff','#ef4444','#10b981','#f59e0b','#8b5cf6'];
+  const bar = document.getElementById('balanceBar');
+  bar.innerHTML = entries.map(([k,v],i) =>
+    `<div class="balance-seg" style="width:${(v/total*100).toFixed(1)}%;background:${colors[i%colors.length]};opacity:.8;" title="${k}: ${v.toLocaleString()}"></div>`
+  ).join('');
+}
+
+// ── TRAIN BUTTON ───────────────────────────────────────────────
+function updateTrainBtn() {
+  const btn  = document.getElementById('trainBtn');
+  const hint = document.getElementById('trainHint');
+  // Can train on example (no currentFile needed) or uploaded file
+  const ready = currentTarget !== null;
+  btn.disabled = !ready || isTraining;
+  if(ready && !isTraining) {
+    hint.textContent = 'Ready to train on: ' + (currentFile?.name || 'selected example') + ' → target: ' + currentTarget;
+    btn.style.opacity = '1';
+  } else if(isTraining) {
+    hint.textContent = 'Training in progress...';
+  } else {
+    hint.textContent = 'Upload a CSV and select a target column first';
+    btn.style.opacity = '0.5';
+  }
+}
+
+// ── START TRAINING ─────────────────────────────────────────────
+function startTraining() {
+  if(!currentTarget) { alert('Please select a target column first.'); return; }
+
+  // Determine which file to use
+  let fileToUse = currentFile;
+  if(!fileToUse) {
+    // User picked an example — need to get which one
+    const active = document.querySelector('.example-card.active');
+    if(!active) { alert('Please upload a CSV or select an example dataset.'); return; }
+    const exKey = active.id.replace('ex-','');
+    const ds = EXAMPLE_DATASETS[exKey];
+    if(!ds) { alert('Please upload your CSV file.'); return; }
+    // For examples, trigger a retrain via the example key
+    trainOnExample(exKey, ds);
+    return;
+  }
+
+  isTraining = true;
+  updateTrainBtn();
+  document.getElementById('progressSection').style.display = 'block';
+  document.getElementById('resultSection').style.display = 'none';
+  document.getElementById('trainLog').innerHTML = '';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressPct').textContent = '0%';
+  document.getElementById('progressSection').scrollIntoView({ behavior:'smooth' });
+
+  const fd = new FormData();
+  fd.append('csv_file', fileToUse);
+  fd.append('target_col', currentTarget);
+
+  fetch('/api/train', { method:'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if(data.error) {
+        alert('Training error: ' + data.error);
+        isTraining = false;
+        updateTrainBtn();
+        return;
+      }
+      startPolling();
+    })
+    .catch(e => {
+      alert('Request failed: ' + e);
+      isTraining = false;
+      updateTrainBtn();
+    });
+}
+
+function trainOnExample(exKey, ds) {
+  // For example datasets, submit the example CSV stored on the server
+  isTraining = true;
+  updateTrainBtn();
+  document.getElementById('progressSection').style.display = 'block';
+  document.getElementById('resultSection').style.display = 'none';
+  document.getElementById('trainLog').innerHTML = '';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressPct').textContent = '0%';
+  document.getElementById('progressSection').scrollIntoView({ behavior:'smooth' });
+
+  fetch('/api/train_example', {
+    method:'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ dataset: exKey, target_col: ds.target })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if(data.error){ alert(data.error); isTraining=false; updateTrainBtn(); return; }
+    startPolling();
+  })
+  .catch(e => { alert('Failed: '+e); isTraining=false; updateTrainBtn(); });
+}
+
+// ── POLL TRAINING STATUS ───────────────────────────────────────
+function startPolling() {
+  if(pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(pollStatus, 1000);
+}
+
+function pollStatus() {
+  fetch('/api/train_status')
+    .then(r => r.json())
+    .then(data => {
+      // Update progress bar
+      const pct = data.progress || 0;
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressPct').textContent = pct + '%';
+
+      // Update log
+      const logEl = document.getElementById('trainLog');
+      if(data.log && data.log.length > 0) {
+        logEl.innerHTML = data.log.map(line => {
+          let cls = '';
+          if(line.startsWith('🎉') || line.startsWith('✅') || line.startsWith('💾')) cls = 'done';
+          else if(line.startsWith('❌')) cls = 'error';
+          else if(line.match(/\[.*\/6\]|Training|Building|Saving/)) cls = 'running';
+          return `<div class="log-line ${cls}">${escapeHtml(line)}</div>`;
+        }).join('');
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      if(data.status === 'done') {
+        clearInterval(pollInterval);
+        isTraining = false;
+        updateTrainBtn();
+        showResult(data.result);
+      } else if(data.status === 'error') {
+        clearInterval(pollInterval);
+        isTraining = false;
+        updateTrainBtn();
+        document.getElementById('progressFill').style.background = 'var(--red)';
+      }
+    })
+    .catch(()=>{});
+}
+
+function showResult(r) {
+  if(!r) return;
+  document.getElementById('resultSection').style.display = 'block';
+  document.getElementById('resultSection').scrollIntoView({ behavior:'smooth' });
+  const metrics = [
+    { val: r.domain,    lbl: 'Domain',    color: '#8b5cf6' },
+    { val: r.accuracy+'%', lbl: 'Accuracy', color: '#00d4ff' },
+    { val: r.auc+'%',   lbl: 'AUC Score', color: '#00d4ff' },
+    { val: r.f1+'%',    lbl: 'F1 Score',  color: '#10b981' },
+    { val: r.features,  lbl: 'Features',  color: '#f59e0b' },
+  ];
+  document.getElementById('resultGrid').innerHTML = metrics.map(m =>
+    `<div class="result-metric">
+       <div class="result-metric-val" style="color:${m.color}">${m.val}</div>
+       <div class="result-metric-lbl">${m.lbl}</div>
+     </div>`
+  ).join('');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function resetForm() {
+  currentFile = null; currentTarget = null; binaryColsData = {};
+  isTraining = false;
+  document.getElementById('uploadZone').className = 'upload-zone';
+  document.getElementById('uploadIcon').textContent = '📂';
+  document.getElementById('uploadTitle').textContent = 'Drop your CSV here or click to browse';
+  document.getElementById('uploadSub').textContent = 'Supports any CSV with a churn / attrition / target column.';
+  document.getElementById('previewSection').style.display = 'none';
+  document.getElementById('targetSection').style.display = 'none';
+  document.getElementById('progressSection').style.display = 'none';
+  document.getElementById('resultSection').style.display = 'none';
+  document.getElementById('fileNameBadge').innerHTML = '';
+  document.querySelectorAll('.example-card').forEach(c=>c.classList.remove('active'));
+  document.getElementById('csvFileInput').value = '';
+  updateTrainBtn();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// Init
+updateTrainBtn();
+</script>
+</body>
+</html>

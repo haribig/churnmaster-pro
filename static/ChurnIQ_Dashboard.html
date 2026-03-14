@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ChurnMaster Pro — Live Analytics Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#05080f;--surface:#090d16;--card:#0d1420;--card2:#111928;
+  --border:#172035;--border2:#1c2a42;
+  --text:#e2eaf8;--muted:#2d4166;--muted2:#5b7aa8;--muted3:#8aa4cc;
+  --cyan:#00d4ff;--amber:#f5a623;--green:#00c896;--red:#ff3355;--blue:#4d8cf0;--purple:#9b6dff;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{height:100%;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 10% 10%,rgba(0,212,255,.05),transparent),radial-gradient(ellipse 60% 50% at 90% 90%,rgba(155,109,255,.04),transparent);pointer-events:none;z-index:0}
+body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.02) 1px,transparent 1px);background-size:50px 50px;pointer-events:none;z-index:0}
+
+/* TOPBAR */
+.topbar{position:sticky;top:0;z-index:100;background:rgba(9,13,22,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;justify-content:space-between}
+.tb-brand{display:flex;align-items:center;gap:10px}
+.tb-logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--cyan),var(--blue));display:flex;align-items:center;justify-content:center;font-size:18px}
+.tb-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:800}
+.tb-name b{color:var(--cyan)}
+.tb-tag{font-size:9px;color:var(--muted3);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.12em}
+.tb-right{display:flex;align-items:center;gap:10px}
+.tb-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:50px;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.tb-badge.green{background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.25);color:var(--green)}
+.tb-badge.amber{background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.25);color:var(--amber)}
+.tb-badge.cyan{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.25);color:var(--cyan)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;flex-shrink:0}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:8px;border:none;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-cyan{background:linear-gradient(135deg,var(--cyan),var(--blue));color:#000}
+.btn-cyan:hover{opacity:.9;transform:translateY(-1px)}
+.btn-ghost{background:rgba(255,255,255,.04);border:1px solid var(--border2);color:var(--muted3)}
+.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* CONNECT BANNER */
+.connect-banner{position:relative;z-index:1;margin:24px 28px 0;background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.connect-banner-left h3{font-size:15px;font-weight:800;margin-bottom:4px}
+.connect-banner-left p{font-size:12px;color:var(--muted3)}
+.api-url-row{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.api-url-box{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:7px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan);max-width:420px;word-break:break-all}
+.btn-sm{padding:5px 12px;font-size:10px;border-radius:6px}
+
+/* SECTION */
+.section{position:relative;z-index:1;padding:0 28px}
+.sec-title{font-size:10px;font-weight:700;color:var(--muted3);text-transform:uppercase;letter-spacing:.12em;font-family:'JetBrains Mono',monospace;margin:28px 0 12px;display:flex;align-items:center;gap:8px}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* REFRESH BAR */
+.refresh-bar{display:flex;align-items:center;justify-content:space-between;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.12);border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:11px;color:var(--muted3);font-family:'JetBrains Mono',monospace;gap:8px;flex-wrap:wrap}
+.refresh-bar b{color:var(--cyan)}
+.refresh-countdown{font-size:10px}
+.progress-track{height:3px;background:var(--border2);border-radius:3px;overflow:hidden;width:120px;flex-shrink:0}
+.progress-fill{height:100%;background:var(--cyan);border-radius:3px;transition:width 1s linear}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.kpi-card{background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:20px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;animation:fadeUp .4s ease both}
+.kpi-card:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.kpi-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.kpi-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.kpi-trend{font-size:10px;font-family:'JetBrains Mono',monospace;padding:3px 8px;border-radius:20px;white-space:nowrap}
+.kpi-trend.up{background:rgba(0,200,150,.1);color:var(--green)}
+.kpi-trend.down{background:rgba(255,51,85,.1);color:var(--red)}
+.kpi-trend.neutral{background:rgba(245,166,35,.1);color:var(--amber)}
+.kpi-val{font-family:'Playfair Display',serif;font-size:32px;font-weight:800;line-height:1;margin-bottom:4px}
+.kpi-lbl{font-size:11px;color:var(--muted3);font-weight:500}
+.kpi-bar{height:3px;background:var(--border);border-radius:2px;margin-top:14px;overflow:hidden}
+.kpi-bar-fill{height:100%;border-radius:2px;transition:width 1s ease}
+
+/* CHARTS */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.chart-card{background:var(--card);border:1px solid var(--border2);border-radius:14px;padding:20px}
+.chart-card.wide{grid-column:1/-1}
+.chart-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.chart-title{font-size:13px;font-weight:700}
+.chart-sub{font-size:10px;color:var(--muted3);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.chart-wrap{position:relative;height:220px}
+.donut-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
+.donut-center-val{font-family:'Playfair Display',serif;font-size:26px;font-weight:800;color:var(--red)}
+.donut-center-lbl{font-size:9px;color:var(--muted3);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.08em}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px}
+.leg-item{display:flex;align-items:center;gap:6px;font-size:11px}
+.leg-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.leg-val{color:var(--muted3);font-family:'JetBrains Mono',monospace;font-size:10px;margin-left:2px}
+
+/* TABLE */
+.table-card{margin-top:14px;background:var(--card);border:1px solid var(--border2);border-radius:14px;overflow:hidden}
+.table-hdr-bar{padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap}
+.table-search{background:var(--card2);border:1.5px solid var(--border2);border-radius:8px;padding:8px 13px;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;outline:none;width:240px;transition:border-color .15s}
+.table-search:focus{border-color:var(--cyan)}
+.filter-btns{display:flex;gap:6px;flex-wrap:wrap}
+.fbtn{padding:5px 12px;border-radius:50px;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;border:1px solid var(--border2);background:transparent;cursor:pointer;color:var(--muted3);transition:all .15s}
+.fbtn.active{background:var(--cyan);color:#000;border-color:var(--cyan)}
+.fbtn:hover:not(.active){border-color:var(--muted3);color:var(--text)}
+.tbl-wrap{overflow-x:auto;max-height:400px;overflow-y:auto}
+table{width:100%;border-collapse:collapse}
+th{position:sticky;top:0;background:var(--card2);padding:10px 16px;text-align:left;font-size:9px;font-weight:700;color:var(--muted3);text-transform:uppercase;letter-spacing:.1em;font-family:'JetBrains Mono',monospace;border-bottom:1px solid var(--border2)}
+td{padding:10px 16px;font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.risk-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:9.5px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.rH{background:rgba(255,51,85,.12);color:var(--red);border:1px solid rgba(255,51,85,.25)}
+.rM{background:rgba(245,166,35,.12);color:var(--amber);border:1px solid rgba(245,166,35,.25)}
+.rL{background:rgba(0,200,150,.12);color:var(--green);border:1px solid rgba(0,200,150,.25)}
+.prob-bar-wrap{display:flex;align-items:center;gap:8px}
+.prob-bar{height:5px;width:70px;background:var(--border);border-radius:3px;overflow:hidden;flex-shrink:0}
+.prob-bar-fill{height:100%;border-radius:3px}
+.prob-val{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted3);min-width:36px}
+
+/* NO DATA / LOADING */
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted3)}
+.empty-state h2{font-size:18px;margin-bottom:8px;color:var(--muted2)}
+.empty-state p{font-size:13px;line-height:1.7}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:9px}
+
+/* ANIMATIONS */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.kpi-card:nth-child(1){animation-delay:.05s}
+.kpi-card:nth-child(2){animation-delay:.10s}
+.kpi-card:nth-child(3){animation-delay:.15s}
+.kpi-card:nth-child(4){animation-delay:.20s}
+@media(max-width:900px){.kpi-grid{grid-template-columns:1fr 1fr}.charts-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.kpi-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="tb-brand">
+    <div class="tb-logo">🎯</div>
+    <div>
+      <div class="tb-name">Churn<b>Master</b> Pro</div>
+      <div class="tb-tag">Live Analytics Dashboard</div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <div class="tb-badge green" id="statusBadge"><div class="live-dot"></div>Connecting…</div>
+    <div class="tb-badge amber" id="recordsBadge" style="display:none">📊 0 records</div>
+    <div class="tb-badge cyan"  id="domainBadge"  style="display:none">—</div>
+    <button class="btn btn-ghost btn-sm" onclick="manualRefresh()">↻ Refresh Now</button>
+    <button class="btn btn-ghost btn-sm" onclick="toggleSettings()">⚙ Settings</button>
+  </div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div id="settingsPanel" style="display:none;position:relative;z-index:1;margin:16px 28px 0;background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:18px 22px">
+  <div style="font-size:13px;font-weight:700;margin-bottom:12px">⚙ Connection Settings</div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted3);margin-bottom:5px">API Base URL</div>
+      <input id="apiUrlInput" type="text" value="" style="background:var(--card2);border:1.5px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:380px;transition:border .2s" onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='var(--border2)'"/>
+    </div>
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted3);margin-bottom:5px">Token (optional)</div>
+      <input id="tokenInput" type="text" placeholder="leave blank if no POWERBI_TOKEN set" style="background:var(--card2);border:1.5px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;width:280px;transition:border .2s" onfocus="this.style.borderColor='var(--cyan)'" onblur="this.style.borderColor='var(--border2)'"/>
+    </div>
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted3);margin-bottom:5px">Refresh Interval</div>
+      <select id="intervalSelect" style="background:var(--card2);border:1.5px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:12px;outline:none">
+        <option value="10">10 seconds</option>
+        <option value="30" selected>30 seconds</option>
+        <option value="60">1 minute</option>
+        <option value="300">5 minutes</option>
+      </select>
+    </div>
+    <button class="btn btn-cyan" style="margin-top:18px" onclick="applySettings()">Connect</button>
+  </div>
+  <div id="connError" style="margin-top:10px;font-size:12px;color:var(--red);display:none"></div>
+</div>
+
+<!-- CONNECT BANNER (shown when no data) -->
+<div class="connect-banner" id="connectBanner">
+  <div class="connect-banner-left">
+    <h3>📡 Connect to your ChurnMaster Pro server</h3>
+    <p>This dashboard auto-fetches live data from your running Flask server every 30 seconds.</p>
+    <div class="api-url-row">
+      <div class="api-url-box" id="bannerApiUrl">http://localhost:5000/api/powerbi_live</div>
+      <button class="btn btn-cyan btn-sm" onclick="connectDefault()">⚡ Connect to localhost</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleSettings()">Change URL</button>
+    </div>
+  </div>
+  <div style="font-size:48px">🔌</div>
+</div>
+
+<!-- MAIN DASHBOARD (hidden until connected) -->
+<div id="dashboard" style="display:none;padding-bottom:48px">
+
+  <div class="section" style="margin-top:24px">
+    <!-- Live refresh indicator -->
+    <div class="refresh-bar">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="live-dot"></div>
+        <span>Live mode — auto-refreshing every <b id="intervalLabel">30s</b></span>
+        <span style="color:var(--muted)" id="lastUpdated"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="refresh-countdown">Next refresh in <b id="countdown">30</b>s</span>
+        <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:100%"></div></div>
+      </div>
+    </div>
+
+    <!-- KPI CARDS -->
+    <div class="sec-title">📊 Key Performance Indicators</div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <div class="kpi-icon" style="background:linear-gradient(135deg,var(--cyan),var(--blue))">🔮</div>
+          <div class="kpi-trend neutral" id="kpi1-trend">—</div>
+        </div>
+        <div class="kpi-val" style="color:var(--cyan)" id="kpi1-val">—</div>
+        <div class="kpi-lbl">Total Predictions</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi1-bar" style="width:100%;background:var(--cyan)"></div></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <div class="kpi-icon" style="background:linear-gradient(135deg,var(--red),#ff7033)">📉</div>
+          <div class="kpi-trend down" id="kpi2-trend">—%</div>
+        </div>
+        <div class="kpi-val" style="color:var(--red)" id="kpi2-val">—</div>
+        <div class="kpi-lbl">Will Churn</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi2-bar" style="width:0%;background:var(--red)"></div></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <div class="kpi-icon" style="background:linear-gradient(135deg,var(--green),var(--cyan))">✅</div>
+          <div class="kpi-trend up" id="kpi3-trend">—%</div>
+        </div>
+        <div class="kpi-val" style="color:var(--green)" id="kpi3-val">—</div>
+        <div class="kpi-lbl">Will Stay</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi3-bar" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-top">
+          <div class="kpi-icon" style="background:linear-gradient(135deg,var(--amber),#ff7033)">⚡</div>
+          <div class="kpi-trend down" id="kpi4-trend">HIGH RISK</div>
+        </div>
+        <div class="kpi-val" style="color:var(--amber)" id="kpi4-val">—</div>
+        <div class="kpi-lbl">Avg Churn Probability</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" id="kpi4-bar" style="width:0%;background:var(--amber)"></div></div>
+      </div>
+    </div>
+
+    <!-- CHARTS -->
+    <div class="sec-title">📈 Visual Analytics</div>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-hdr">
+          <div><div class="chart-title">Risk Distribution</div><div class="chart-sub">HIGH · MEDIUM · LOW</div></div>
+        </div>
+        <div class="chart-wrap" style="height:200px">
+          <canvas id="donutChart"></canvas>
+          <div class="donut-center">
+            <div class="donut-center-val" id="donutCenter">—</div>
+            <div class="donut-center-lbl">High Risk</div>
+          </div>
+        </div>
+        <div class="legend" id="donutLegend"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-hdr">
+          <div><div class="chart-title">Churn vs Stay</div><div class="chart-sub">Prediction outcome split</div></div>
+        </div>
+        <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+      </div>
+      <div class="chart-card wide">
+        <div class="chart-hdr">
+          <div><div class="chart-title">Probability Distribution</div><div class="chart-sub">How probability spreads across all customers</div></div>
+        </div>
+        <div class="chart-wrap" style="height:180px"><canvas id="histChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="sec-title">👥 Customer Predictions</div>
+    <div class="table-card">
+      <div class="table-hdr-bar">
+        <input class="table-search" id="searchBox" placeholder="🔍  Search customer ID or label…" oninput="filterTable()"/>
+        <div class="filter-btns">
+          <button class="fbtn active" onclick="setFilter('ALL',this)">All</button>
+          <button class="fbtn" onclick="setFilter('HIGH',this)">🔴 High Risk</button>
+          <button class="fbtn" onclick="setFilter('MEDIUM',this)">🟠 Medium</button>
+          <button class="fbtn" onclick="setFilter('LOW',this)">🟢 Low</button>
+          <button class="fbtn" onclick="setFilter('CHURN',this)">⚠️ Will Churn</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Customer ID</th><th>Label</th><th>Risk</th>
+              <th>Probability</th><th>Domain</th><th>Source</th><th>User</th><th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div style="padding:10px 20px;font-size:10px;color:var(--muted3);font-family:'JetBrains Mono',monospace;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+        <span>Showing <b id="showingCount">0</b> of <b id="totalCount">0</b> records</span>
+        <span id="modelInfo" style="color:var(--muted2)"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════════
+let API_BASE    = '';
+let API_TOKEN   = '';
+let INTERVAL_S  = 30;
+let allRows     = [];
+let currentFilter = 'ALL';
+let refreshTimer, countdownTimer, progressTimer;
+let countdownVal = 30;
+let donutChart, barChart, histChart;
+let connected   = false;
+
+// ── Read URL params (?api=... sets the endpoint automatically)
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  const api = params.get('api');
+  const tok = params.get('token');
+  const base = api || (window.location.origin === 'null' ? 'http://localhost:5000' : window.location.origin);
+  API_BASE  = base.replace(/\/api\/powerbi_live.*/, '');
+  API_TOKEN = tok || '';
+  document.getElementById('apiUrlInput').value = API_BASE;
+  document.getElementById('tokenInput').value  = API_TOKEN;
+  document.getElementById('bannerApiUrl').textContent = API_BASE + '/api/powerbi_live';
+
+  // Auto-connect if opened from dashboard with ?api= param
+  if (api) {
+    setTimeout(()=> fetchData(), 300);
+  }
+})();
+
+// ════════════════════════════════════════════════════════════════
+//  FETCH
+// ════════════════════════════════════════════════════════════════
+async function fetchData() {
+  const tokenPart = API_TOKEN ? `?token=${encodeURIComponent(API_TOKEN)}` : '';
+  const url = `${API_BASE}/api/powerbi_live${tokenPart}`;
+
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+
+    // Support both /api/powerbi_live (nested) and plain record arrays
+    let rows = [];
+    if (json.records) {
+      rows = json.records.map(r => ({
+        CustomerID: r.customer_id || r.CustomerID || '—',
+        Label:       r.label       || r.Label       || '—',
+        Risk:        r.risk        || r.Risk         || '—',
+        Probability: r.probability ?? r.Probability ?? 0,
+        Domain:      r.domain      || r.Domain       || '—',
+        Source:      r.source      || r.Source       || '—',
+        Username:    r.username    || r.Username      || '—',
+        Timestamp:   r.timestamp   || r.Timestamp     || '—',
+        Prediction:  r.prediction  ?? r.Prediction    ?? 0,
+      }));
+    } else if (Array.isArray(json)) {
+      rows = json.map(r => ({
+        CustomerID: r.customer_id || r.CustomerID || '—',
+        Label:       r.label       || r.Label       || '—',
+        Risk:        r.risk        || r.Risk         || '—',
+        Probability: r.probability ?? r.Probability ?? 0,
+        Domain:      r.domain      || r.Domain       || '—',
+        Source:      r.source      || r.Source       || '—',
+        Username:    r.username    || r.Username      || '—',
+        Timestamp:   r.timestamp   || r.Timestamp     || '—',
+        Prediction:  r.prediction  ?? r.Prediction    ?? 0,
+      }));
+    } else if (json.tables?.[0]?.rows) {
+      // Power BI export format
+      rows = json.tables[0].rows.map(r => ({
+        CustomerID: r.CustomerID || '—',
+        Label: r.Label || '—', Risk: r.Risk || '—',
+        Probability: r.Probability||0, Domain: r.Domain||'—',
+        Source: r.Source||'—', Username: r.Username||'—',
+        Timestamp: r.Timestamp||'—', Prediction: r.Prediction||0,
+      }));
+    }
+
+    allRows = rows;
+    const model = json.model || {};
+    const summary = json.summary || {};
+    document.getElementById('connError').style.display = 'none';
+    showDashboard(model, summary);
+    renderDashboard();
+    updateLastUpdated();
+
+  } catch(err) {
+    const errEl = document.getElementById('connError');
+    errEl.textContent = `⚠️ Cannot reach ${API_BASE} — ${err.message}. Make sure Flask server is running (python app.py).`;
+    errEl.style.display = 'block';
+    document.getElementById('settingsPanel').style.display = 'block';
+    document.getElementById('statusBadge').innerHTML = '🔴 Disconnected';
+    document.getElementById('statusBadge').className = 'tb-badge';
+    document.getElementById('statusBadge').style.background = 'rgba(255,51,85,.1)';
+    document.getElementById('statusBadge').style.color = 'var(--red)';
+  }
+}
+
+function showDashboard(model, summary) {
+  connected = true;
+  document.getElementById('connectBanner').style.display = 'none';
+  document.getElementById('dashboard').style.display     = 'block';
+  document.getElementById('statusBadge').innerHTML = '<div class="live-dot"></div>&nbsp;Live — Connected';
+  document.getElementById('statusBadge').className = 'tb-badge green';
+  if (model.domain) {
+    document.getElementById('domainBadge').textContent = '🧠 ' + model.domain;
+    document.getElementById('domainBadge').style.display = 'flex';
+  }
+}
+
+function updateLastUpdated() {
+  const now = new Date();
+  document.getElementById('lastUpdated').textContent =
+    '· updated ' + now.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+// ════════════════════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════════════════════
+function renderDashboard() {
+  const rows     = allRows;
+  const total    = rows.length;
+  const churned  = rows.filter(r=>r.Prediction===1||r.Prediction==='1').length;
+  const stayed   = total - churned;
+  const high     = rows.filter(r=>r.Risk==='HIGH').length;
+  const medium   = rows.filter(r=>r.Risk==='MEDIUM').length;
+  const low      = rows.filter(r=>r.Risk==='LOW').length;
+  const avgProb  = total ? (rows.reduce((s,r)=>s+(+r.Probability||0),0)/total).toFixed(1) : 0;
+  const churnPct = total ? ((churned/total)*100).toFixed(1) : 0;
+  const stayPct  = total ? ((stayed/total)*100).toFixed(1) : 0;
+  const domain   = rows[0]?.Domain || '—';
+
+  // Badges
+  document.getElementById('recordsBadge').style.display = 'flex';
+  document.getElementById('recordsBadge').textContent   = '📊 ' + total.toLocaleString() + ' records';
+  document.getElementById('kpi1-trend').textContent = domain;
+  document.getElementById('kpi2-trend').textContent = churnPct + '% churn rate';
+  document.getElementById('kpi3-trend').textContent = stayPct  + '% stay rate';
+  document.getElementById('kpi4-trend').textContent = high + ' HIGH RISK';
+
+  animNum('kpi1-val', total);
+  animNum('kpi2-val', churned);
+  animNum('kpi3-val', stayed);
+  document.getElementById('kpi4-val').textContent = avgProb + '%';
+
+  setTimeout(()=>{ document.getElementById('kpi2-bar').style.width = churnPct+'%'; },300);
+  setTimeout(()=>{ document.getElementById('kpi3-bar').style.width = stayPct +'%'; },400);
+  setTimeout(()=>{ document.getElementById('kpi4-bar').style.width = avgProb +'%'; },500);
+  document.getElementById('donutCenter').textContent = high;
+
+  buildDonut(high, medium, low);
+  buildBar(churned, stayed, churnPct, stayPct);
+  buildHist(rows);
+  renderTable(rows.slice(0, 500));
+  document.getElementById('totalCount').textContent   = total.toLocaleString();
+  document.getElementById('showingCount').textContent = Math.min(500, total).toLocaleString();
+  document.getElementById('modelInfo').textContent    = `Domain: ${domain} · Avg prob: ${avgProb}%`;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  CHARTS
+// ════════════════════════════════════════════════════════════════
+Chart.defaults.color       = '#8aa4cc';
+Chart.defaults.borderColor = '#1c2a42';
+Chart.defaults.font        = { family:'Inter', size:11 };
+
+function buildDonut(high, med, low) {
+  if (donutChart) donutChart.destroy();
+  donutChart = new Chart(document.getElementById('donutChart'), {
+    type: 'doughnut',
+    data: { labels:['High Risk','Medium Risk','Low Risk'],
+      datasets:[{ data:[high,med,low], backgroundColor:['#ff3355','#f5a623','#00c896'], borderWidth:2, borderColor:'#0d1420', hoverOffset:6 }] },
+    options: { cutout:'68%', responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>' '+ctx.label+': '+ctx.parsed.toLocaleString()+' ('+((ctx.parsed/(high+med+low))*100).toFixed(1)+'%)' } } } }
+  });
+  const total=high+med+low||1;
+  document.getElementById('donutLegend').innerHTML =
+    [['High Risk',high,'#ff3355'],['Medium Risk',med,'#f5a623'],['Low Risk',low,'#00c896']]
+    .map(([l,v,c])=>`<div class="leg-item"><div class="leg-dot" style="background:${c}"></div><span>${l}</span><span class="leg-val">${v.toLocaleString()} (${((v/total)*100).toFixed(1)}%)</span></div>`)
+    .join('');
+}
+
+function buildBar(churned, stayed, cp, sp) {
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('barChart'), {
+    type:'bar',
+    data:{ labels:['Will Stay','Will Churn'],
+      datasets:[{ data:[stayed,churned], backgroundColor:['rgba(0,200,150,.7)','rgba(255,51,85,.7)'], borderColor:['#00c896','#ff3355'], borderWidth:2, borderRadius:8 }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:ctx=>' '+ctx.parsed.y.toLocaleString()+' customers' } } },
+      scales:{ x:{grid:{color:'rgba(255,255,255,.04)'}}, y:{grid:{color:'rgba(255,255,255,.04)'},beginAtZero:true,ticks:{callback:v=>v.toLocaleString()}} } }
+  });
+}
+
+function buildHist(rows) {
+  if (histChart) histChart.destroy();
+  const bins=Array(10).fill(0);
+  rows.forEach(r=>{const idx=Math.min(Math.floor((+r.Probability||0)/10),9);bins[idx]++;});
+  const labels=['0–10%','10–20%','20–30%','30–40%','40–50%','50–60%','60–70%','70–80%','80–90%','90–100%'];
+  const colors=bins.map((_,i)=>i>=6?'rgba(255,51,85,.7)':i>=4?'rgba(245,166,35,.7)':'rgba(0,200,150,.7)');
+  histChart = new Chart(document.getElementById('histChart'),{
+    type:'bar',
+    data:{ labels, datasets:[{ data:bins, backgroundColor:colors, borderRadius:6, borderSkipped:false }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ x:{grid:{display:false}}, y:{grid:{color:'rgba(255,255,255,.04)'},beginAtZero:true} } }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+//  TABLE
+// ════════════════════════════════════════════════════════════════
+function renderTable(rows) {
+  const body = document.getElementById('tableBody');
+  if(!rows.length){ body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted3);padding:32px">No records match your filter</td></tr>'; return; }
+  body.innerHTML = rows.map(r => {
+    const prob = +r.Probability||0;
+    const probColor = prob>=60?'var(--red)':prob>=30?'var(--amber)':'var(--green)';
+    const rClass = r.Risk==='HIGH'?'rH':r.Risk==='MEDIUM'?'rM':'rL';
+    const ts = r.Timestamp && r.Timestamp!=='—' ? new Date(r.Timestamp).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}) : '—';
+    return `<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--cyan)">${r.CustomerID}</td>
+      <td>${r.Prediction==1||r.Prediction==='1'?'⚠️':'✅'} ${r.Label}</td>
+      <td><span class="risk-pill ${rClass}">${r.Risk}</span></td>
+      <td><div class="prob-bar-wrap">
+        <div class="prob-bar"><div class="prob-bar-fill" style="width:${prob}%;background:${probColor}"></div></div>
+        <span class="prob-val" style="color:${probColor}">${prob.toFixed(1)}%</span>
+      </div></td>
+      <td style="color:var(--muted3)">${r.Domain}</td>
+      <td style="color:var(--muted3);font-family:'JetBrains Mono',monospace;font-size:10px">${r.Source}</td>
+      <td style="color:var(--muted3);font-size:11px">${r.Username}</td>
+      <td style="color:var(--muted3);font-size:10px;font-family:'JetBrains Mono',monospace">${ts}</td>
+    </tr>`;
+  }).join('');
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  filterTable();
+}
+function filterTable() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  let rows = allRows;
+  if (currentFilter==='HIGH')   rows=rows.filter(r=>r.Risk==='HIGH');
+  if (currentFilter==='MEDIUM') rows=rows.filter(r=>r.Risk==='MEDIUM');
+  if (currentFilter==='LOW')    rows=rows.filter(r=>r.Risk==='LOW');
+  if (currentFilter==='CHURN')  rows=rows.filter(r=>r.Prediction==1||r.Prediction==='1');
+  if (q) rows=rows.filter(r=>(r.CustomerID||'').toLowerCase().includes(q)||(r.Label||'').toLowerCase().includes(q));
+  const shown=rows.slice(0,500);
+  renderTable(shown);
+  document.getElementById('showingCount').textContent=Math.min(rows.length,500).toLocaleString();
+  document.getElementById('totalCount').textContent  =allRows.length.toLocaleString();
+}
+
+// ════════════════════════════════════════════════════════════════
+//  AUTO-REFRESH LOOP
+// ════════════════════════════════════════════════════════════════
+function startRefreshLoop() {
+  clearInterval(refreshTimer);
+  clearInterval(countdownTimer);
+  clearInterval(progressTimer);
+
+  countdownVal = INTERVAL_S;
+  document.getElementById('intervalLabel').textContent = INTERVAL_S<60?INTERVAL_S+'s':(INTERVAL_S/60)+'m';
+
+  refreshTimer = setInterval(()=>{
+    fetchData();
+    countdownVal = INTERVAL_S;
+  }, INTERVAL_S*1000);
+
+  countdownTimer = setInterval(()=>{
+    countdownVal--;
+    if(countdownVal<0) countdownVal=INTERVAL_S;
+    document.getElementById('countdown').textContent = countdownVal;
+  }, 1000);
+
+  progressTimer = setInterval(()=>{
+    const pct = (countdownVal/INTERVAL_S)*100;
+    document.getElementById('progressFill').style.width = pct+'%';
+  }, 1000);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  CONTROLS
+// ════════════════════════════════════════════════════════════════
+function connectDefault() {
+  document.getElementById('settingsPanel').style.display = 'none';
+  fetchData();
+  startRefreshLoop();
+}
+function manualRefresh() {
+  fetchData();
+  countdownVal = INTERVAL_S;
+}
+function toggleSettings() {
+  const p=document.getElementById('settingsPanel');
+  p.style.display = p.style.display==='none'?'block':'none';
+}
+function applySettings() {
+  API_BASE   = document.getElementById('apiUrlInput').value.trim().replace(/\/$/, '');
+  API_TOKEN  = document.getElementById('tokenInput').value.trim();
+  INTERVAL_S = parseInt(document.getElementById('intervalSelect').value);
+  document.getElementById('bannerApiUrl').textContent = API_BASE+'/api/powerbi_live';
+  toggleSettings();
+  fetchData();
+  startRefreshLoop();
+}
+
+// ════════════════════════════════════════════════════════════════
+//  UTIL
+// ════════════════════════════════════════════════════════════════
+function animNum(id, to) {
+  const el=document.getElementById(id);
+  const from=parseInt(el.textContent.replace(/,/g,''))||0;
+  const dur=800, start=performance.now();
+  (function step(now){
+    const p=Math.min((now-start)/dur,1);
+    const ease=1-Math.pow(1-p,3);
+    el.textContent=Math.round(from+(to-from)*ease).toLocaleString();
+    if(p<1) requestAnimationFrame(step);
+  })(start);
+}
+
+// Mouse-tracking glow on KPI cards
+document.addEventListener('mousemove',e=>{
+  const c=e.target.closest('.kpi-card');
+  if(c){const r=c.getBoundingClientRect();c.style.setProperty('--mx',((e.clientX-r.left)/r.width*100)+'%');c.style.setProperty('--my',((e.clientY-r.top)/r.height*100)+'%');}
+});
+</script>
+</body>
+</html>

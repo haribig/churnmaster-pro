@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ChurnMaster Pro — Dashboard</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+.kpi-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:20px; position:relative; overflow:hidden;
+  transition:transform .2s,box-shadow .2s;
+}
+.kpi-card:hover { transform:translateY(-3px); box-shadow:0 16px 48px rgba(0,0,0,.5); }
+.kpi-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; }
+.kpi-card.c-cyan::after  { background:linear-gradient(90deg,var(--cyan),#0099bb); }
+.kpi-card.c-red::after   { background:linear-gradient(90deg,var(--red),#ff7033); }
+.kpi-card.c-green::after { background:linear-gradient(90deg,var(--green),var(--cyan)); }
+.kpi-card.c-amber::after { background:linear-gradient(90deg,var(--amber),#ff7033); }
+.kpi-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+.kpi-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+.kpi-val  { font-family:var(--font-head); font-size:30px; font-weight:800; line-height:1; margin-bottom:3px; }
+.kpi-lbl  { font-size:12px; color:var(--muted2); }
+.kpi-bar  { height:3px; background:var(--card2); border-radius:99px; overflow:hidden; margin-top:14px; }
+.kpi-fill { height:100%; border-radius:99px; transition:width 1s ease; }
+.sec-title {
+  font-family:var(--font-mono); font-size:9px; font-weight:700;
+  color:var(--muted2); text-transform:uppercase; letter-spacing:.16em;
+  display:flex; align-items:center; gap:10px; margin:28px 0 14px;
+}
+.sec-title::after { content:''; flex:1; height:1px; background:var(--border); }
+.chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.chart-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; }
+.chart-card.wide { grid-column:1/-1; }
+.chart-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.chart-title { font-size:13px; font-weight:700; }
+.chart-sub   { font-size:10px; color:var(--muted2); font-family:var(--font-mono); margin-top:2px; }
+.chart-wrap  { position:relative; height:210px; }
+.table-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.tbl-topbar { padding:14px 18px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border); gap:10px; flex-wrap:wrap; }
+.tbl-search { background:var(--card2); border:1.5px solid var(--border); border-radius:var(--radius-sm); padding:7px 12px; color:var(--text); font-size:12px; outline:none; width:220px; transition:all .2s; }
+.tbl-search:focus { border-color:var(--cyan); }
+.filter-row { display:flex; gap:6px; flex-wrap:wrap; }
+.fbtn { padding:4px 11px; border-radius:50px; font-size:9.5px; font-weight:700; font-family:var(--font-mono); border:1px solid var(--border2); background:transparent; cursor:pointer; color:var(--muted2); transition:all .15s; }
+.fbtn.active { background:var(--cyan); color:#000; border-color:var(--cyan); }
+.fbtn:hover:not(.active) { border-color:var(--muted2); color:var(--text); }
+.tbl-wrap { overflow-x:auto; max-height:340px; overflow-y:auto; }
+table { width:100%; border-collapse:collapse; }
+th { position:sticky; top:0; background:var(--card2); padding:9px 16px; text-align:left; font-size:9px; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:.1em; font-family:var(--font-mono); border-bottom:1px solid var(--border); }
+td { padding:9px 16px; font-size:12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(255,255,255,.018); }
+.risk-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:20px; font-size:9.5px; font-weight:700; font-family:var(--font-mono); }
+.risk-HIGH   { background:rgba(239,68,68,.12); color:#fca5a5; border:1px solid rgba(239,68,68,.25); }
+.risk-MEDIUM { background:rgba(245,158,11,.12); color:#fcd34d; border:1px solid rgba(245,158,11,.25); }
+.risk-LOW    { background:rgba(16,185,129,.12); color:#6ee7b7; border:1px solid rgba(16,185,129,.25); }
+.prob-bar-wrap { display:flex; align-items:center; gap:8px; }
+.prob-bar { height:4px; width:64px; background:var(--border2); border-radius:3px; overflow:hidden; flex-shrink:0; }
+.prob-fill { height:100%; border-radius:3px; }
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+.pbi-panel { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.pbi-tabs { display:flex; border-bottom:1px solid var(--border); overflow-x:auto; }
+.pbi-tab { flex-shrink:0; padding:12px 16px; text-align:center; font-size:11px; font-weight:600; color:var(--muted2); cursor:pointer; transition:all .2s; border-bottom:2px solid transparent; white-space:nowrap; }
+.pbi-tab.active { color:var(--cyan); border-bottom-color:var(--cyan); background:rgba(0,212,255,.04); }
+.pbi-panel-body { padding:24px; }
+.pbi-tab-content { display:none; }
+.pbi-tab-content.active { display:block; }
+.step-grid { display:flex; flex-direction:column; gap:16px; }
+.step-row { display:flex; gap:14px; align-items:flex-start; }
+.step-num { width:28px; height:28px; border-radius:8px; flex-shrink:0; background:rgba(0,212,255,.1); border:1px solid rgba(0,212,255,.2); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:var(--cyan); font-family:var(--font-mono); }
+.step-content h4 { font-size:13px; font-weight:700; margin-bottom:4px; }
+.step-content p  { font-size:12px; color:var(--muted2); line-height:1.65; }
+.step-content .code { background:var(--bg); border:1px solid var(--border2); border-radius:6px; padding:7px 11px; font-family:var(--font-mono); font-size:11px; color:var(--cyan); margin-top:7px; display:flex; align-items:center; justify-content:space-between; gap:8px; word-break:break-all; }
+.copy-btn { background:rgba(0,212,255,.08); border:1px solid rgba(0,212,255,.2); border-radius:5px; padding:2px 8px; font-size:9px; font-family:var(--font-mono); color:var(--cyan); cursor:pointer; white-space:nowrap; flex-shrink:0; transition:all .15s; }
+.copy-btn:hover { background:rgba(0,212,255,.18); }
+.live-bar { display:flex; align-items:center; justify-content:space-between; background:var(--bg); border:1px solid var(--border2); border-radius:var(--radius-sm); padding:9px 14px; margin-bottom:18px; flex-wrap:wrap; gap:8px; }
+.live-stat { font-family:var(--font-mono); font-size:10px; color:var(--muted2); display:flex; align-items:center; gap:5px; }
+.live-stat b { color:var(--text); }
+.callout { display:flex; gap:11px; padding:12px 14px; border-radius:var(--radius-sm); font-size:12px; line-height:1.65; margin-bottom:14px; }
+.callout.warn    { background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.2); }
+.callout.info    { background:rgba(0,212,255,.07); border:1px solid rgba(0,212,255,.2); }
+.callout.success { background:rgba(16,185,129,.07); border:1px solid rgba(16,185,129,.2); }
+.callout-icon { font-size:16px; flex-shrink:0; }
+.callout p { font-size:12px; line-height:1.65; margin-bottom:4px; }
+.callout small { font-size:11px; color:var(--muted2); }
+.ds-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.ds-card { background:var(--card2); border:1.5px solid var(--border); border-radius:var(--radius-sm); padding:16px; cursor:pointer; transition:all .2s; }
+.ds-card:hover { border-color:var(--cyan); transform:translateY(-2px); }
+.ds-card.active { border-color:var(--cyan); background:rgba(0,212,255,.06); }
+.ds-icon  { font-size:24px; margin-bottom:8px; }
+.ds-name  { font-size:13px; font-weight:700; margin-bottom:3px; }
+.ds-meta  { font-size:10px; color:var(--muted2); font-family:var(--font-mono); }
+.ds-target { font-size:9px; color:var(--cyan); font-family:var(--font-mono); margin-top:5px; }
+.train-block { background:var(--bg); border:1px solid var(--border2); border-radius:var(--radius-sm); padding:16px; font-family:var(--font-mono); font-size:12px; line-height:2.1; color:var(--muted2); }
+.train-block .tc  { color:var(--muted); }
+.train-block .cmd { color:var(--cyan); }
+.train-block .arg { color:var(--amber); }
+.train-block .val { color:var(--green); }
+.model-bar { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+.model-stat { background:var(--card2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px 14px; }
+.model-stat-val { font-family:var(--font-head); font-size:20px; font-weight:800; color:var(--cyan); }
+.model-stat-lbl { font-size:10px; color:var(--muted2); font-family:var(--font-mono); margin-top:2px; }
+.qa-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.qa-card { background:var(--card2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:18px; display:flex; flex-direction:column; align-items:flex-start; gap:8px; transition:all .2s; text-decoration:none; }
+.qa-card:hover { border-color:var(--cyan); background:rgba(0,212,255,.04); transform:translateY(-2px); }
+.qa-icon { font-size:22px; }
+.qa-name { font-size:13px; font-weight:700; color:var(--text); }
+.qa-desc { font-size:11px; color:var(--muted2); }
+@media(max-width:900px){ .kpi-grid{grid-template-columns:1fr 1fr} .chart-grid{grid-template-columns:1fr} .ds-grid{grid-template-columns:1fr 1fr} }
+@media(max-width:600px){ .kpi-grid{grid-template-columns:1fr} .qa-grid{grid-template-columns:1fr} .ds-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+<!-- ═══ SIDEBAR ════════════════════════════════════════════════════════ -->
+<nav class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <div class="sb-logo-icon">🎯</div>
+      <div>
+        <div class="sb-logo-name">Churn<span>Master</span></div>
+        <div class="sb-logo-sub">Pro Analytics Platform</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-user">
+    <div class="sb-avatar">👤</div>
+    <div>
+      <div class="sb-user-name">{{ username }}</div>
+      <div class="sb-user-role">{{ role }}</div>
+    </div>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-section-label">Analytics</div>
+    <a href="#overview"    class="sb-nav-item active" onclick="goTo('#overview',this)"><span class="sb-nav-icon">📊</span>Overview</a>
+    <a href="{{ url_for('main.history') }}" class="sb-nav-item"><span class="sb-nav-icon">🕓</span>History</a>
+    <a href="{{ url_for('main.powerbi_page') }}" class="sb-nav-item">
+      <span class="sb-nav-icon">📡</span>Power BI
+      <span style="margin-left:auto;background:rgba(242,200,17,.15);border:1px solid rgba(242,200,17,.3);color:#F2C811;font-size:8px;padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">NEW</span>
+    </a>
+    <a href="#charts"      class="sb-nav-item"        onclick="goTo('#charts',this)"><span class="sb-nav-icon">📈</span>Charts</a>
+    <div class="sb-section-label">Predictions</div>
+    <a href="{{ url_for('main.predict') }}"        class="sb-nav-item"><span class="sb-nav-icon">🔮</span>Single Predict</a>
+    <a href="{{ url_for('main.bulk') }}"           class="sb-nav-item"><span class="sb-nav-icon">📂</span>Bulk Predict</a>
+    <div class="sb-section-label">Tools</div>
+    <a href="#datasets" class="sb-nav-item"        onclick="goTo('#datasets',this)"><span class="sb-nav-icon">🗄</span>Datasets</a>
+    <a href="{{ url_for('main.export_csv') }}"     class="sb-nav-item"><span class="sb-nav-icon">📥</span>Export CSV</a>
+  </div>
+  <div class="sb-footer">
+    <a href="{{ url_for('main.logout') }}" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">Sign Out</a>
+  </div>
+</nav>
+
+<!-- ═══ MAIN CONTENT ═══════════════════════════════════════════════════ -->
+<div class="main-content">
+  <div class="topbar">
+    <div class="topbar-title">🎯 Dashboard</div>
+    <div class="topbar-right">
+      <div class="topbar-pill"><div class="dot"></div>{{ model_meta.get('domain','Telecom') if model_meta else 'Loading' }}</div>
+      <span id="liveClock" style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)"></span>
+      <a href="{{ url_for('main.predict') }}" class="btn btn-primary btn-sm">+ Predict</a>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div style="padding:14px 28px 0">
+        {% for cat, msg in messages %}
+          <div class="flash {{ cat }}" onclick="this.remove()" style="margin-bottom:8px">
+            <span>{{ '⚠️' if cat=='error' else '✅' if cat=='success' else 'ℹ️' }}</span>
+            <span>{{ msg }}</span><span class="flash-close">✕</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="page-body">
+
+    <!-- OVERVIEW ─────────────────────────────────────────────────── -->
+    <div id="overview">
+      <div class="sec-title">📊 Key Performance Indicators</div>
+      <div class="kpi-grid">
+        <div class="kpi-card c-cyan anim-up d1">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:rgba(0,212,255,.1)">🔮</div>
+            <span class="badge badge-cyan">Total</span>
+          </div>
+          <div class="kpi-val" style="color:var(--cyan)">{{ stats.total or 0 }}</div>
+          <div class="kpi-lbl">Total Predictions</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:100%;background:var(--cyan)"></div></div>
+        </div>
+        <div class="kpi-card c-red anim-up d2">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:rgba(239,68,68,.1)">📉</div>
+            <span class="badge badge-red">{{ "%.1f"|format(stats.churn_rate or 0) }}%</span>
+          </div>
+          <div class="kpi-val" style="color:var(--red)">{{ stats.churned or 0 }}</div>
+          <div class="kpi-lbl">Will Churn</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:{{ stats.churn_rate or 0 }}%;background:var(--red)"></div></div>
+        </div>
+        <div class="kpi-card c-green anim-up d3">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:rgba(16,185,129,.1)">✅</div>
+            <span class="badge badge-green">{{ "%.1f"|format(100-(stats.churn_rate or 0)) }}%</span>
+          </div>
+          <div class="kpi-val" style="color:var(--green)">{{ stats.stayed or 0 }}</div>
+          <div class="kpi-lbl">Will Stay</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:{{ 100-(stats.churn_rate or 0) }}%;background:var(--green)"></div></div>
+        </div>
+        <div class="kpi-card c-amber anim-up d4">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:rgba(245,158,11,.1)">⚡</div>
+            <span class="badge badge-red">{{ stats.high_risk or 0 }} HIGH</span>
+          </div>
+          <div class="kpi-val" style="color:var(--amber)">{{ "%.1f"|format(stats.avg_prob or 0) }}%</div>
+          <div class="kpi-lbl">Avg Churn Probability</div>
+          <div class="kpi-bar"><div class="kpi-fill" style="width:{{ stats.avg_prob or 0 }}%;background:var(--amber)"></div></div>
+        </div>
+      </div>
+
+      <div class="sec-title">⚡ Quick Actions</div>
+      <div class="qa-grid">
+        <a href="{{ url_for('main.predict') }}" class="qa-card">
+          <span class="qa-icon">🔮</span>
+          <div class="qa-name">Predict Single Customer</div>
+          <div class="qa-desc">Fill 19 fields → instant prediction + retention plan</div>
+        </a>
+        <a href="#powerbi" onclick="goTo('#powerbi',null);return false;" class="qa-card">
+          <span class="qa-icon">📡</span>
+          <div class="qa-name">Power BI Live Connect</div>
+          <div class="qa-desc">Connect Power BI Desktop to your live prediction API</div>
+        </a>
+        <a href="#datasets" onclick="goTo('#datasets',null);return false;" class="qa-card">
+          <span class="qa-icon">🗄</span>
+          <div class="qa-name">Switch Dataset / Retrain</div>
+          <div class="qa-desc">Bank, HR, E-Commerce, or any custom CSV</div>
+        </a>
+      </div>
+    </div>
+
+    <!-- CHARTS ───────────────────────────────────────────────────── -->
+    <div id="charts">
+      <div class="sec-title">📈 Visual Analytics</div>
+
+      <!-- Top row: Donut + Bar -->
+      <div class="chart-grid" style="margin-bottom:14px">
+
+        <!-- Risk Distribution Donut -->
+        <div class="chart-card" style="padding:24px">
+          <div class="chart-hdr" style="margin-bottom:20px">
+            <div>
+              <div class="chart-title" style="font-size:15px">Risk Distribution</div>
+              <div class="chart-sub" style="margin-top:4px">
+                <span style="color:#ef4444">■</span> HIGH &nbsp;
+                <span style="color:#f59e0b">■</span> MEDIUM &nbsp;
+                <span style="color:#10b981">■</span> LOW
+              </div>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)">All-time</div>
+          </div>
+          <div style="position:relative;height:240px;display:flex;align-items:center;justify-content:center">
+            <canvas id="donutChart"></canvas>
+            <div style="position:absolute;text-align:center;pointer-events:none">
+              <div id="donutCenter" style="font-family:var(--font-head);font-size:26px;font-weight:900;color:var(--text)">—</div>
+              <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.1em">Total</div>
+            </div>
+          </div>
+          <div id="donutLegend" style="display:flex;justify-content:center;gap:18px;margin-top:16px;flex-wrap:wrap"></div>
+        </div>
+
+        <!-- Churn vs Stay Bar -->
+        <div class="chart-card" style="padding:24px">
+          <div class="chart-hdr" style="margin-bottom:20px">
+            <div>
+              <div class="chart-title" style="font-size:15px">Churn vs Stay</div>
+              <div class="chart-sub" style="margin-top:4px;font-family:var(--font-mono);font-size:9px;letter-spacing:.08em">PREDICTION OUTCOME SPLIT</div>
+            </div>
+            <div id="churnRateBadge" style="font-family:var(--font-mono);font-size:11px;padding:4px 10px;border-radius:6px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#fca5a5"></div>
+          </div>
+          <div class="chart-wrap" style="height:240px"><canvas id="barChart"></canvas></div>
+        </div>
+
+      </div>
+
+      <!-- Bottom: Probability Distribution + Trend side by side -->
+      <div class="chart-grid">
+        <div class="chart-card" style="padding:24px">
+          <div class="chart-hdr" style="margin-bottom:16px">
+            <div>
+              <div class="chart-title" style="font-size:15px">Probability Distribution</div>
+              <div class="chart-sub" style="margin-top:4px;font-family:var(--font-mono);font-size:9px;letter-spacing:.08em">CHURN SCORE BUCKETS</div>
+            </div>
+          </div>
+          <div class="chart-wrap" style="height:180px"><canvas id="probDistChart"></canvas></div>
+        </div>
+        <div class="chart-card" style="padding:24px">
+          <div class="chart-hdr" style="margin-bottom:16px">
+            <div>
+              <div class="chart-title" style="font-size:15px">30-Day Churn Trend</div>
+              <div class="chart-sub" style="margin-top:4px;font-family:var(--font-mono);font-size:9px;letter-spacing:.08em">DAILY CHURN RATE %</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="refreshStats()">↻ Refresh</button>
+          </div>
+          <div class="chart-wrap" style="height:180px"><canvas id="trendChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PREDICTIONS TABLE ────────────────────────────────────────── -->
+    <div id="predictions">
+      <div class="sec-title">👥 Recent Predictions</div>
+      <div class="table-card">
+        <div class="tbl-topbar">
+          <input class="tbl-search" id="tblSearch" placeholder="🔍 Search customer ID…" oninput="filterTable()"/>
+          <div class="filter-row">
+            <button class="fbtn active" onclick="setF('ALL',this)">All</button>
+            <button class="fbtn" onclick="setF('HIGH',this)">🔴 High</button>
+            <button class="fbtn" onclick="setF('MEDIUM',this)">🟡 Medium</button>
+            <button class="fbtn" onclick="setF('LOW',this)">🟢 Low</button>
+            <button class="fbtn" onclick="setF('CHURN',this)">⚠️ Churn</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Customer</th><th>Label</th><th>Risk</th><th>Probability</th><th>Domain</th><th>User</th><th>Time</th></tr>
+            </thead>
+            <tbody id="tblBody">
+              {% for r in recent %}
+              <tr data-risk="{{ r.risk }}" data-pred="{{ r.prediction }}">
+                <td style="color:var(--muted2);font-family:var(--font-mono);font-size:10px">{{ r.id }}</td>
+                <td style="font-family:var(--font-mono);font-size:11px;color:var(--cyan)">{{ r.customer_id or '—' }}</td>
+                <td>{{ '⚠️' if r.prediction == 1 else '✅' }} {{ r.label }}</td>
+                <td><span class="risk-pill risk-{{ r.risk }}">{{ r.risk }}</span></td>
+                <td>
+                  <div class="prob-bar-wrap">
+                    <div class="prob-bar">
+                      <div class="prob-fill" style="width:{{ r.probability }}%;background:{{ '#ef4444' if r.probability>60 else '#f59e0b' if r.probability>30 else '#10b981' }}"></div>
+                    </div>
+                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)">{{ "%.1f"|format(r.probability) }}%</span>
+                  </div>
+                </td>
+                <td style="color:var(--muted2);font-size:11px">{{ r.domain or '—' }}</td>
+                <td style="color:var(--muted2);font-size:11px">{{ r.username or '—' }}</td>
+                <td style="color:var(--muted2);font-family:var(--font-mono);font-size:10px">{{ r.timestamp[:16] if r.timestamp else '—' }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" style="text-align:center;color:var(--muted2);padding:32px">No predictions yet — <a href="{{ url_for('main.predict') }}" style="color:var(--cyan)">make your first prediction</a></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:9px 18px;font-family:var(--font-mono);font-size:10px;color:var(--muted2);border-top:1px solid var(--border)">
+          Showing {{ recent|length }} records · <a href="{{ url_for('main.export_csv') }}" style="color:var(--cyan)">Export all as CSV →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- POWER BI LIVE ────────────────────────────────────────────── -->
+    <div id="powerbi">
+      <div class="sec-title">📡 Power BI Live Integration</div>
+
+      <div class="live-bar">
+        <div class="live-stat"><div class="dot" style="flex-shrink:0"></div>&nbsp;<b>Live API Active</b></div>
+        <div class="live-stat">Endpoint: <b id="liveEndpoint">loading…</b></div>
+        <div class="live-stat">Records: <b>{{ stats.total or 0 }}</b></div>
+        <button class="btn btn-ghost btn-sm" onclick="window.open(window.location.origin+'/api/powerbi_live','_blank')">View JSON ↗</button>
+      </div>
+
+      <div class="pbi-panel">
+        <div class="pbi-tabs">
+          <div class="pbi-tab active"  onclick="switchTab('desktop',this)">📊 Power BI Desktop</div>
+          <div class="pbi-tab"         onclick="switchTab('service',this)">☁️ Power BI Service</div>
+          <div class="pbi-tab"         onclick="switchTab('live',this)">⚡ Live Dashboard</div>
+          <div class="pbi-tab"         onclick="switchTab('security',this)">🔒 Security</div>
+        </div>
+
+        <div class="pbi-panel-body">
+
+          <!-- DESKTOP ──────────────────────────── -->
+          <div class="pbi-tab-content active" id="tab-desktop">
+            <div class="callout info">
+              <span class="callout-icon">💡</span>
+              <div>
+                <p><b>Power BI Desktop connects directly to your running Flask server</b> — no file exports. It polls the live endpoint every time you hit Refresh.</p>
+                <small>Requires Power BI Desktop (free from microsoft.com/en-us/power-bi)</small>
+              </div>
+            </div>
+            <div class="step-grid">
+              <div class="step-row">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                  <h4>Keep your Flask server running</h4>
+                  <p>Open a terminal in your project folder and start the server.</p>
+                  <div class="code"><code>python app.py</code><button class="copy-btn" onclick="copyTxt('python app.py')">Copy</button></div>
+                </div>
+              </div>
+              <div class="step-row">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                  <h4>Power BI Desktop → Home → Get Data → Web</h4>
+                  <p>Select <b>Basic</b> and paste this URL. It returns a flat JSON array — one row per prediction.</p>
+                  <div class="code"><code id="pbi1Url">http://localhost:5000/api/powerbi_live/records</code><button class="copy-btn" onclick="copyTxt(document.getElementById('pbi1Url').textContent)">Copy</button></div>
+                  <p style="margin-top:8px">The <code style="color:var(--amber)">/records</code> endpoint returns a flat list that Power BI parses directly into a table.</p>
+                </div>
+              </div>
+              <div class="step-row">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                  <h4>In Power Query — Convert to Table → Expand</h4>
+                  <p>Power BI shows a <b>List</b>. Click <b>Convert to Table</b>, then click the expand icon on the <b>Column1</b> header → select all fields → OK. You'll see all columns: id, timestamp, prediction, probability, risk, label, domain, date, hour, customer_id.</p>
+                </div>
+              </div>
+              <div class="step-row">
+                <div class="step-num">4</div>
+                <div class="step-content">
+                  <h4>Build your visuals</h4>
+                  <p>Use <code style="color:var(--cyan)">probability</code> for gauges, <code style="color:var(--cyan)">risk</code> for slicers, <code style="color:var(--cyan)">date</code> for trend lines, <code style="color:var(--cyan)">label</code> for donut charts.</p>
+                </div>
+              </div>
+              <div class="step-row">
+                <div class="step-num">5</div>
+                <div class="step-content">
+                  <h4>Click Refresh = live data pulled instantly</h4>
+                  <p>No re-importing files. Every Refresh call re-hits your Flask API and returns the latest predictions from the database.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SERVICE ──────────────────────────── -->
+          <div class="pbi-tab-content" id="tab-service">
+            <div class="callout warn">
+              <span class="callout-icon">⚠️</span>
+              <div>
+                <p><b>Power BI Service cannot reach localhost</b> — you need a public URL for scheduled refresh.</p>
+                <small>For local use only: publish from Desktop with static export instead.</small>
+              </div>
+            </div>
+            <div class="step-grid">
+              <div class="step-row">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                  <h4>Expose your server publicly</h4>
+                  <p><b>Fastest — ngrok (free):</b></p>
+                  <div class="code"><code>ngrok http 5000</code><button class="copy-btn" onclick="copyTxt('ngrok http 5000')">Copy</button></div>
+                  <p style="margin-top:8px">You'll get a URL like <span style="color:var(--cyan)">https://abc123.ngrok.io</span>. Use that instead of localhost in Power BI.</p>
+                  <p style="margin-top:8px"><b>Permanent — deploy to Railway / Render / Azure:</b> free tiers available, gives you a stable HTTPS URL.</p>
+                </div>
+              </div>
+              <div class="step-row">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                  <h4>Set POWERBI_TOKEN for auth</h4>
+                  <p>Add to your <code style="color:var(--amber)">.env</code> file:</p>
+                  <div class="code"><code>POWERBI_TOKEN=my_secret_token_here</code><button class="copy-btn" onclick="copyTxt('POWERBI_TOKEN=my_secret_token_here')">Copy</button></div>
+                  <p style="margin-top:8px">Use the URL with token in Power BI:</p>
+                  <div class="code"><code id="pbi2Url">https://YOUR_URL/api/powerbi_live/records?token=my_secret_token_here</code><button class="copy-btn" onclick="copyTxt(document.getElementById('pbi2Url').textContent)">Copy</button></div>
+                </div>
+              </div>
+              <div class="step-row">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                  <h4>Publish Desktop → Service, then set Scheduled Refresh</h4>
+                  <p>In Desktop: <b>File → Publish → Publish to Power BI</b>. In app.powerbi.com, open your dataset → <b>Settings → Scheduled Refresh → Turn On → set interval</b>. Free plan: up to 8× per day (every 3 hours). Pro: up to 48× (every 30 min).</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LIVE DASHBOARD ───────────────────── -->
+          <div class="pbi-tab-content" id="tab-live">
+            <div class="callout success">
+              <span class="callout-icon">⚡</span>
+              <div>
+                <p><b>ChurnIQ Live Dashboard — no Power BI license needed.</b> Runs in the browser, auto-refreshes from your Flask API every 30 seconds.</p>
+                <small>Works on same network. Share the URL with teammates.</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+              <button class="btn btn-primary"  onclick="openLiveDash()">⚡ Open Live Dashboard</button>
+              <button class="btn btn-ghost"    onclick="window.open(window.location.origin+'/api/powerbi_live','_blank')">🔗 Test Live API</button>
+              <button class="btn btn-violet"   onclick="exportPbi()">📥 Export Power BI JSON</button>
+            </div>
+            <div class="callout info">
+              <span class="callout-icon">🔄</span>
+              <div>
+                <p><b>How it works:</b> The live dashboard fetches <code style="color:var(--cyan)">/api/powerbi_live</code> every 30 seconds. Charts, KPIs and the predictions table all update automatically.</p>
+                <small>You can also use this endpoint with Grafana, Tableau, Google Looker Studio, or any BI tool that can read JSON from a URL.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- SECURITY ─────────────────────────── -->
+          <div class="pbi-tab-content" id="tab-security">
+            <div class="step-grid">
+              <div class="step-row">
+                <div class="step-num">🔑</div>
+                <div class="step-content">
+                  <h4>Token auth for public endpoints</h4>
+                  <p>Set <code style="color:var(--amber)">POWERBI_TOKEN</code> in <code style="color:var(--amber)">.env</code>. Anyone calling without <code>?token=...</code> gets HTTP 401.</p>
+                  <div class="code"><code>POWERBI_TOKEN=change_to_something_long_and_random</code><button class="copy-btn" onclick="copyTxt('POWERBI_TOKEN=change_to_something_long_and_random')">Copy</button></div>
+                </div>
+              </div>
+              <div class="step-row">
+                <div class="step-num">🔒</div>
+                <div class="step-content">
+                  <h4>Use HTTPS in production</h4>
+                  <p>Never serve on plain HTTP publicly. Use nginx + Certbot, or a platform with automatic TLS (Railway, Render, Azure App Service).</p>
+                </div>
+              </div>
+              <div class="step-row">
+                <div class="step-num">👔</div>
+                <div class="step-content">
+                  <h4>Enterprise: Power BI Embedded</h4>
+                  <p>For per-user Row-Level Security, AAD authentication, and no public embed links, use Power BI Embedded (Azure). Needs an Azure AD app registration + Premium Capacity (~$735/month A1 SKU). Reference: <span style="color:var(--cyan)">docs.microsoft.com/power-bi/developer/embedded</span></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- DATASET SWITCHER ────────────────────────────────────────── -->
+    <div id="datasets">
+      <div class="sec-title">🗄 Datasets &amp; Model Training</div>
+
+      {% if model_meta and model_meta.loaded %}
+      <div class="model-bar">
+        <div class="model-stat">
+          <div class="model-stat-val">{{ model_meta.domain }}</div>
+          <div class="model-stat-lbl">Active Domain</div>
+        </div>
+        <div class="model-stat">
+          <div class="model-stat-val">{{ model_meta.n_features }}</div>
+          <div class="model-stat-lbl">Features</div>
+        </div>
+        <div class="model-stat">
+          <div class="model-stat-val">{{ model_meta.n_samples or '—' }}</div>
+          <div class="model-stat-lbl">Training Rows</div>
+        </div>
+        <div class="model-stat">
+          <div class="model-stat-val">{{ model_meta.accuracy }}%</div>
+          <div class="model-stat-lbl">Accuracy</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="callout info">
+        <span class="callout-icon">🧠</span>
+        <div>
+          <p><b>The ML model trains on ANY binary classification CSV.</b> Bank, HR, telecom, e-commerce — just point train.py at your CSV and specify the target column. Training takes ~2 minutes.</p>
+          <small>6 algorithms: Random Forest, XGBoost, Gradient Boost, Logistic Regression, SVM, Decision Tree → combined into a Voting Ensemble.</small>
+        </div>
+      </div>
+
+      <div class="ds-grid">
+        <div class="ds-card {% if model_meta and 'Telecom' in model_meta.get('domain','') %}active{% endif %}">
+          <div class="ds-icon">📱</div>
+          <div class="ds-name">Telecom Churn</div>
+          <div class="ds-meta">customer_churn_prediction_dataset.csv · 7,043 rows</div>
+          <div class="ds-target">--target <b>Churn</b></div>
+        </div>
+        <div class="ds-card {% if model_meta and 'Bank' in model_meta.get('domain','') %}active{% endif %}">
+          <div class="ds-icon">🏦</div>
+          <div class="ds-name">Bank Customer Churn</div>
+          <div class="ds-meta">Bank Customer Churn Prediction.csv · 10,000 rows</div>
+          <div class="ds-target">--target <b>Exited</b></div>
+        </div>
+        <div class="ds-card {% if model_meta and 'HR' in model_meta.get('domain','') %}active{% endif %}">
+          <div class="ds-icon">👔</div>
+          <div class="ds-name">IBM HR Attrition</div>
+          <div class="ds-meta">WA_Fn-UseC_-HR-Employee-Attrition.csv · 1,470 rows</div>
+          <div class="ds-target">--target <b>Attrition</b></div>
+        </div>
+        <div class="ds-card">
+          <div class="ds-icon">🛒</div>
+          <div class="ds-name">E-Commerce Churn</div>
+          <div class="ds-meta">Any e-commerce CSV with order history</div>
+          <div class="ds-target">--target <b>Churn</b></div>
+        </div>
+        <div class="ds-card">
+          <div class="ds-icon">🏥</div>
+          <div class="ds-name">Insurance / SaaS</div>
+          <div class="ds-meta">Any subscription / policy CSV</div>
+          <div class="ds-target">--target any Yes/No column</div>
+        </div>
+        <div class="ds-card">
+          <div class="ds-icon">⚡</div>
+          <div class="ds-name">Your Own Data</div>
+          <div class="ds-meta">Any CSV — domain + target auto-detected</div>
+          <div class="ds-target">Minimum: 100 rows, 1 binary column</div>
+        </div>
+      </div>
+
+      <div class="sec-title" style="margin-top:28px">🖥 Retrain on a Different Dataset — Terminal Commands</div>
+      <div class="train-block">
+<span class="tc"># Step 1: Copy your CSV file into the project root folder</span>
+<span class="tc"># Step 2: Open terminal in the project folder and run:</span>
+
+<span class="tc"># ── Telecom (already trained, default) ───────────────────────────────</span>
+<span class="cmd">python </span><span class="arg">train.py </span><span class="val">--csv customer_churn_prediction_dataset.csv --target Churn</span>
+
+<span class="tc"># ── Banking dataset ───────────────────────────────────────────────────</span>
+<span class="cmd">python </span><span class="arg">train.py </span><span class="val">--csv "Bank Customer Churn Prediction.csv" --target Exited</span>
+
+<span class="tc"># ── IBM HR Attrition ──────────────────────────────────────────────────</span>
+<span class="cmd">python </span><span class="arg">train.py </span><span class="val">--csv "WA_Fn-UseC_-HR-Employee-Attrition.csv" --target Attrition</span>
+
+<span class="tc"># ── Any custom CSV (omit --target to auto-detect) ─────────────────────</span>
+<span class="cmd">python </span><span class="arg">train.py </span><span class="val">--csv your_data.csv --target YourChurnColumn</span>
+
+<span class="tc"># Step 3: After training completes (~2 min), hot-reload without restart</span>
+<span class="cmd">curl </span><span class="val">-X POST http://localhost:5000/api/reload_model</span>
+      </div>
+
+      <div class="callout warn" style="margin-top:14px">
+        <span class="callout-icon">⚠️</span>
+        <div>
+          <p><b>After switching datasets, the /predict form fields change</b> (bank features ≠ telecom features). The telecom predict form is pre-built. For other datasets, use the API directly or the ChurnIQ Dashboard's dynamic form.</p>
+          <small>train.py saves the correct feature_names.pkl — the API and dashboard adapt automatically.</small>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="hotReload()">🔄 Hot-Reload Model Now</button>
+        <a href="/api/model_info" target="_blank" class="btn btn-ghost">📋 View Model Info (JSON)</a>
+        <a href="/api/powerbi_live/summary" target="_blank" class="btn btn-ghost">📊 API Summary</a>
+      </div>
+      <div id="reloadResult" style="display:none;margin-top:14px"></div>
+    </div>
+
+  </div><!-- /page-body -->
+</div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<script>
+// ── Chart.js defaults ─────────────────────────────────────────────────
+Chart.defaults.color = '#6b7a99';
+Chart.defaults.borderColor = 'rgba(255,255,255,.04)';
+Chart.defaults.font.family = 'Inter';
+
+const STATS  = {{ stats|tojson }};
+const TREND  = {{ trend|tojson }};
+const RISKD  = {{ risk_dist|tojson }};
+let donutCh, barCh, trendCh;
+
+let probDistCh;
+
+function buildCharts() {
+  const H=RISKD['HIGH']||0, M=RISKD['MEDIUM']||0, L=RISKD['LOW']||0;
+  const total = H+M+L;
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const gridCol = isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)';
+  const bg = isDark ? '#0d1420' : '#f8faff';
+
+  // ── Donut ──────────────────────────────────────────────────────────
+  if(donutCh) donutCh.destroy();
+  const donutEl = document.getElementById('donutChart');
+  donutEl.style.maxWidth='220px'; donutEl.style.maxHeight='220px';
+  donutCh = new Chart(donutEl, {
+    type:'doughnut',
+    data:{
+      labels:['High Risk','Medium Risk','Low Risk'],
+      datasets:[{
+        data:[H,M,L],
+        backgroundColor:['#ef4444','#f59e0b','#10b981'],
+        borderColor: bg,
+        borderWidth: 4,
+        hoverOffset: 10,
+        hoverBorderWidth: 0,
+      }]
+    },
+    options:{
+      cutout:'72%',
+      responsive:true, maintainAspectRatio:true,
+      animation:{animateRotate:true, duration:900},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'rgba(10,16,28,.95)',
+          borderColor:'rgba(255,255,255,.1)', borderWidth:1,
+          padding:10, cornerRadius:8,
+          callbacks:{
+            label: c => '  ' + c.label + ': ' + c.parsed.toLocaleString() +
+                        ' (' + (total>0?(c.parsed/total*100).toFixed(1):'0.0') + '%)'
+          }
+        }
+      }
+    }
+  });
+  // Center number
+  const cEl = document.getElementById('donutCenter');
+  if(cEl) cEl.textContent = total.toLocaleString();
+  // Legend
+  const lEl = document.getElementById('donutLegend');
+  if(lEl) lEl.innerHTML = [
+    ['#ef4444','High Risk',H],
+    ['#f59e0b','Medium',M],
+    ['#10b981','Low Risk',L],
+  ].map(([c,l,v])=>`
+    <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted3)">
+      <div style="width:10px;height:10px;border-radius:3px;background:${c};flex-shrink:0"></div>
+      <span>${l}</span>
+      <span style="color:${c};font-weight:700;font-family:var(--font-mono)">${v.toLocaleString()}</span>
+    </div>`).join('');
+
+  // ── Bar Chart ─────────────────────────────────────────────────────
+  if(barCh) barCh.destroy();
+  const stayed  = STATS.stayed||0;
+  const churned = STATS.churned||0;
+  const rate    = total>0?(churned/total*100).toFixed(1):'0.0';
+  const badge   = document.getElementById('churnRateBadge');
+  if(badge) badge.textContent = rate + '% Churn Rate';
+
+  barCh = new Chart(document.getElementById('barChart'),{
+    type:'bar',
+    data:{
+      labels:['Will Stay','Will Churn'],
+      datasets:[{
+        data:[stayed, churned],
+        backgroundColor:['rgba(16,185,129,.75)','rgba(239,68,68,.75)'],
+        borderColor:['#10b981','#ef4444'],
+        borderWidth:2,
+        borderRadius:10,
+        borderSkipped:false,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{duration:800},
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'rgba(10,16,28,.95)',
+          borderColor:'rgba(255,255,255,.1)', borderWidth:1,
+          padding:10, cornerRadius:8,
+          callbacks:{
+            label: c => '  ' + c.parsed.y.toLocaleString() + ' customers'
+          }
+        }
+      },
+      scales:{
+        x:{
+          grid:{color:gridCol},
+          ticks:{color:'#6b7a99', font:{size:12, weight:'600'}},
+        },
+        y:{
+          grid:{color:gridCol},
+          beginAtZero:true,
+          ticks:{color:'#6b7a99', callback:v=>v.toLocaleString()}
+        }
+      }
+    }
+  });
+
+  // ── Probability Distribution ──────────────────────────────────────
+  if(probDistCh) probDistCh.destroy();
+  // Build buckets from raw stats if available, else fake from totals
+  const buckets = ['0-20%','20-40%','40-60%','60-80%','80-100%'];
+  const bucketData = [0,0,0,0,0];
+  probDistCh = new Chart(document.getElementById('probDistChart'),{
+    type:'bar',
+    data:{
+      labels: buckets,
+      datasets:[{
+        label:'Customers',
+        data: bucketData,
+        backgroundColor:[
+          'rgba(16,185,129,.7)','rgba(16,185,129,.5)',
+          'rgba(245,158,11,.6)','rgba(239,68,68,.5)','rgba(239,68,68,.8)'
+        ],
+        borderRadius:8, borderSkipped:false,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{grid:{color:gridCol}, ticks:{color:'#6b7a99', font:{size:10}}},
+        y:{grid:{color:gridCol}, beginAtZero:true, ticks:{color:'#6b7a99'}}
+      }
+    }
+  });
+  // Populate probability dist from API
+  fetch('/api/powerbi_live/records').then(r=>r.json()).then(rows=>{
+    if(!Array.isArray(rows)) return;
+    const b=[0,0,0,0,0];
+    rows.forEach(r=>{
+      const p=parseFloat(r.probability)||0;
+      if(p<20)b[0]++; else if(p<40)b[1]++; else if(p<60)b[2]++; else if(p<80)b[3]++; else b[4]++;
+    });
+    probDistCh.data.datasets[0].data = b;
+    probDistCh.update();
+  }).catch(()=>{});
+
+  // ── Trend Line ────────────────────────────────────────────────────
+  if(trendCh) trendCh.destroy();
+  trendCh = new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{
+      labels: TREND.map(r=>r.day.slice(5)),
+      datasets:[{
+        label:'Churn %',
+        data: TREND.map(r=>r.rate),
+        borderColor:'#00d4ff',
+        backgroundColor: isDark ? 'rgba(0,212,255,.08)' : 'rgba(0,153,204,.06)',
+        fill:true, tension:.4,
+        pointRadius:4, pointHoverRadius:7,
+        pointBackgroundColor:'#00d4ff', pointBorderColor:'#fff', pointBorderWidth:2,
+        borderWidth:2.5
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{duration:800},
+      plugins:{legend:{display:false},
+        tooltip:{
+          backgroundColor:'rgba(10,16,28,.95)',
+          borderColor:'rgba(0,212,255,.3)', borderWidth:1,
+          padding:10, cornerRadius:8,
+          callbacks:{label:c=>'  Churn Rate: '+c.parsed.y.toFixed(1)+'%'}
+        }
+      },
+      scales:{
+        x:{grid:{display:false}, ticks:{color:'#6b7a99', font:{size:10}}},
+        y:{grid:{color:gridCol}, beginAtZero:true, ticks:{color:'#6b7a99', callback:v=>v+'%'}}
+      }
+    }
+  });
+}
+window.addEventListener('load', buildCharts);
+
+function refreshStats() {
+  fetch('/api/stats').then(r=>r.json()).then(s=>console.log('Stats refreshed',s));
+}
+setInterval(refreshStats, 60000);
+
+// Live clock
+function tick(){
+  const d=new Date();
+  const el=document.getElementById('liveClock');
+  if(el) el.textContent=d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+tick(); setInterval(tick,1000);
+
+// Set URLs based on current host
+(function(){
+  const h=window.location.origin;
+  const e=document.getElementById('liveEndpoint');
+  if(e) e.textContent=h+'/api/powerbi_live';
+  const u1=document.getElementById('pbi1Url');
+  if(u1) u1.textContent=h+'/api/powerbi_live/records';
+  const u2=document.getElementById('pbi2Url');
+  if(u2) u2.textContent=h+'/api/powerbi_live/records?token=YOUR_TOKEN';
+})();
+
+// Table filter
+let _filt='ALL';
+function setF(f,btn){ _filt=f; document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); filterTable(); }
+function filterTable(){
+  const q=document.getElementById('tblSearch').value.toLowerCase();
+  document.querySelectorAll('#tblBody tr[data-risk]').forEach(row=>{
+    const r=row.dataset.risk, p=parseInt(row.dataset.pred);
+    const cid=(row.cells[1]?.textContent||'').toLowerCase();
+    let show=true;
+    if(_filt==='HIGH'&&r!=='HIGH')show=false;
+    if(_filt==='MEDIUM'&&r!=='MEDIUM')show=false;
+    if(_filt==='LOW'&&r!=='LOW')show=false;
+    if(_filt==='CHURN'&&p!==1)show=false;
+    if(q&&!cid.includes(q))show=false;
+    row.style.display=show?'':'none';
+  });
+}
+
+// PBI tabs
+function switchTab(id,el){
+  document.querySelectorAll('.pbi-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.pbi-tab-content').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+}
+
+// Open live dashboard
+function openLiveDash(){
+  window.open(`/static/ChurnIQ_Dashboard.html?api=${encodeURIComponent(window.location.origin+'/api/powerbi_live')}`, '_blank');
+}
+async function exportPbi(){
+  const r=await fetch('/export/powerbi',{method:'POST'});
+  if(r.ok){const b=await r.blob();const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ChurnMaster_PowerBI_'+new Date().toISOString().slice(0,10)+'.json';a.click();}
+}
+async function hotReload(){
+  const btn=event.target; btn.textContent='⏳ Reloading…'; btn.disabled=true;
+  try{
+    const r=await fetch('/api/reload_model',{method:'POST'});
+    const d=await r.json();
+    const el=document.getElementById('reloadResult'); el.style.display='block';
+    if(d.success) el.innerHTML=`<div class="callout success"><span class="callout-icon">✅</span><div><p>Model reloaded: <b>${d.domain}</b> · ${d.features} features · ${d.accuracy}% accuracy</p><small>Refresh page to update domain in the sidebar.</small></div></div>`;
+    else el.innerHTML=`<div class="callout warn"><span class="callout-icon">⚠️</span><div><p>${d.error}</p></div></div>`;
+  }catch(e){
+    document.getElementById('reloadResult').innerHTML=`<div class="callout warn"><span class="callout-icon">⚠️</span><div><p>Reload failed. Is the server running?</p></div></div>`;
+    document.getElementById('reloadResult').style.display='block';
+  }
+  btn.textContent='🔄 Hot-Reload Model Now'; btn.disabled=false;
+}
+
+function copyTxt(t){
+  navigator.clipboard.writeText(t).then(()=>{
+    const el=document.createElement('div');
+    el.textContent='✓ Copied!';
+    Object.assign(el.style,{position:'fixed',bottom:'22px',left:'50%',transform:'translateX(-50%)',background:'#10b981',color:'#000',padding:'6px 18px',borderRadius:'8px',fontSize:'12px',fontWeight:'700',zIndex:'9999'});
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),1600);
+  });
+}
+function goTo(sel,el){
+  event&&event.preventDefault();
+  document.querySelector(sel)?.scrollIntoView({behavior:'smooth',block:'start'});
+  if(el){document.querySelectorAll('.sb-nav-item').forEach(a=>a.classList.remove('active'));el.classList.add('active');}
+}
+document.querySelectorAll('.flash').forEach(el=>{setTimeout(()=>el.remove(),5000);});
+// ── Theme ──────────────────────────────────────────────────────
+const html=document.documentElement;
+function setTheme(t){html.setAttribute('data-theme',t);const d=t==='dark';document.getElementById('gti').textContent=d?'☀️':'🌙';document.getElementById('gtl').textContent=d?'Light':'Dark';localStorage.setItem('churnmaster-theme',t);}
+function toggleTheme(){setTheme(html.getAttribute('data-theme')==='dark'?'light':'dark');}
+setTheme(localStorage.getItem('churnmaster-theme')||'dark');
+</script>
+
+<!-- GLOBAL THEME TOGGLE -->
+<button class="global-theme-btn" onclick="toggleTheme()">
+  <span id="gti">☀️</span><span id="gtl">Light</span>
+</button>
+</body>
+</html>

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Prediction History — ChurnMaster Pro</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<style>
+/* ── KPI strip ───────────────────────────────────────── */
+.kpi-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+.kpi-chip  {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:14px 16px;
+  display:flex; align-items:center; gap:12px;
+}
+.kpi-chip-icon { font-size:22px; flex-shrink:0; }
+.kpi-chip-val  { font-family:var(--font-head); font-size:20px; font-weight:800; line-height:1; }
+.kpi-chip-lbl  { font-size:10px; color:var(--muted2); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+
+/* ── Toolbar ─────────────────────────────────────────── */
+.toolbar {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; flex-wrap:wrap; margin-bottom:16px;
+}
+.search-wrap { position:relative; }
+.search-wrap input {
+  background:var(--card); border:1.5px solid var(--border);
+  border-radius:var(--radius-sm); padding:9px 12px 9px 36px;
+  color:var(--text); font-size:13px; outline:none; width:260px; transition:all .2s;
+}
+.search-wrap input:focus { border-color:var(--cyan); box-shadow:0 0 0 3px rgba(0,212,255,.08); }
+.search-wrap .icon { position:absolute; left:11px; top:50%; transform:translateY(-50%); font-size:13px; opacity:.4; pointer-events:none; }
+.filter-group { display:flex; gap:6px; flex-wrap:wrap; }
+.fbtn {
+  padding:5px 13px; border-radius:50px; font-size:9.5px; font-weight:700;
+  font-family:var(--font-mono); border:1px solid var(--border2);
+  background:transparent; cursor:pointer; color:var(--muted2); transition:all .15s;
+}
+.fbtn.active { background:var(--cyan); color:#000; border-color:var(--cyan); }
+.fbtn:hover:not(.active) { border-color:var(--muted2); color:var(--text); }
+
+/* ── Table ───────────────────────────────────────────── */
+.tbl-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden;
+}
+.tbl-wrap { overflow-x:auto; max-height:calc(100vh - 340px); overflow-y:auto; }
+table { width:100%; border-collapse:collapse; }
+thead th {
+  position:sticky; top:0; background:var(--card2); z-index:2;
+  padding:10px 14px; text-align:left; font-size:9px; font-weight:700;
+  color:var(--muted2); text-transform:uppercase; letter-spacing:.1em;
+  font-family:var(--font-mono); border-bottom:1px solid var(--border2);
+  cursor:pointer; user-select:none; white-space:nowrap;
+}
+thead th:hover { color:var(--cyan); }
+thead th .sort-arrow { margin-left:4px; opacity:.35; }
+thead th.sorted .sort-arrow { opacity:1; color:var(--cyan); }
+tbody td { padding:10px 14px; font-size:12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr:hover td { background:rgba(255,255,255,.018); }
+
+/* Risk + label pills */
+.risk-pill {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:2px 9px; border-radius:50px; font-size:9.5px;
+  font-weight:700; font-family:var(--font-mono);
+}
+.rH { background:rgba(239,68,68,.12); color:#fca5a5; border:1px solid rgba(239,68,68,.25); }
+.rM { background:rgba(245,158,11,.12); color:#fcd34d; border:1px solid rgba(245,158,11,.25); }
+.rL { background:rgba(16,185,129,.12); color:#6ee7b7; border:1px solid rgba(16,185,129,.25); }
+
+.label-pill { display:inline-flex; align-items:center; gap:5px; font-size:12px; }
+
+/* Prob bar */
+.prob-wrap { display:flex; align-items:center; gap:7px; }
+.prob-bar  { height:4px; width:60px; background:var(--border2); border-radius:3px; overflow:hidden; flex-shrink:0; }
+.prob-fill { height:100%; border-radius:3px; }
+
+/* Footer bar */
+.tbl-footer {
+  padding:10px 16px; display:flex; align-items:center;
+  justify-content:space-between; border-top:1px solid var(--border);
+  font-family:var(--font-mono); font-size:10px; color:var(--muted2); flex-wrap:wrap; gap:8px;
+}
+/* Empty state */
+.empty { text-align:center; padding:60px 20px; color:var(--muted2); }
+.empty-icon { font-size:42px; margin-bottom:12px; }
+.empty h3 { font-size:16px; font-weight:700; margin-bottom:6px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+@media(max-width:800px) { .kpi-strip{grid-template-columns:1fr 1fr} .toolbar{flex-direction:column;align-items:flex-start} .search-wrap input{width:100%} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+<!-- ═══ SIDEBAR ════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <div class="sb-logo-icon">🎯</div>
+      <div>
+        <div class="sb-logo-name">Churn<span>Master</span></div>
+        <div class="sb-logo-sub">Pro Analytics Platform</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-user">
+    <div class="sb-avatar">👤</div>
+    <div>
+      <div class="sb-user-name">{{ username }}</div>
+      <div class="sb-user-role">{{ role }}</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section-label">Analytics</div>
+    <a class="sb-nav-item" href="{{ url_for('main.dashboard') }}">
+      <span class="sb-nav-icon">📊</span>Dashboard
+    </a>
+    <a class="sb-nav-item active" href="{{ url_for('main.history') }}">
+      <span class="sb-nav-icon">🕓</span>History
+    </a>
+    <a href="{{ url_for('main.powerbi_page') }}" class="sb-nav-item">
+      <span class="sb-nav-icon">📡</span>Power BI
+      <span style="margin-left:auto;background:rgba(242,200,17,.15);border:1px solid rgba(242,200,17,.3);color:#F2C811;font-size:8px;padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">NEW</span>
+    </a>
+    <div class="sb-section-label">Predictions</div>
+    <a class="sb-nav-item" href="{{ url_for('main.predict') }}">
+      <span class="sb-nav-icon">🔮</span>Single Predict
+    </a>
+    <a class="sb-nav-item" href="{{ url_for('main.bulk') }}">
+      <span class="sb-nav-icon">📂</span>Bulk Predict
+    </a>
+    <div class="sb-section-label">Export</div>
+    <a class="sb-nav-item" href="{{ url_for('main.export_csv') }}">
+      <span class="sb-nav-icon">📥</span>Export CSV
+    </a>
+  </nav>
+  <div class="sb-footer">
+    <a href="{{ url_for('main.logout') }}" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">
+      🚪 Sign Out
+    </a>
+  </div>
+</aside>
+
+<!-- ═══ MAIN CONTENT ═══════════════════════════════════════════════════ -->
+<div class="main-content">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-title">🕓 Prediction History</div>
+    <div class="topbar-right">
+      <div class="topbar-pill"><div class="dot"></div>{{ stats.total or 0 }} total predictions</div>
+      <a href="{{ url_for('main.predict') }}"   class="btn btn-primary btn-sm">+ New Prediction</a>
+      <a href="{{ url_for('main.export_csv') }}" class="btn btn-ghost btn-sm">📥 Export CSV</a>
+      <button onclick="showClearModal()" class="btn btn-danger btn-sm">🗑️ Clear All</button>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+      {% for cat, msg in messages %}
+      <div class="flash {{ cat }}" onclick="this.remove()">
+        <span class="flash-icon">{{ "✅" if cat=="success" else "❌" if cat=="error" else "⚠️" }}</span>
+        <span>{{ msg }}</span><span class="flash-close">✕</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="page-body">
+
+    <!-- KPI strip -->
+    <div class="kpi-strip">
+      <div class="kpi-chip">
+        <div class="kpi-chip-icon">🔮</div>
+        <div>
+          <div class="kpi-chip-val" style="color:var(--cyan)">{{ stats.total or 0 }}</div>
+          <div class="kpi-chip-lbl">Total Predictions</div>
+        </div>
+      </div>
+      <div class="kpi-chip">
+        <div class="kpi-chip-icon">📉</div>
+        <div>
+          <div class="kpi-chip-val" style="color:var(--red)">{{ stats.churned or 0 }}</div>
+          <div class="kpi-chip-lbl">Will Churn</div>
+        </div>
+      </div>
+      <div class="kpi-chip">
+        <div class="kpi-chip-icon">✅</div>
+        <div>
+          <div class="kpi-chip-val" style="color:var(--green)">{{ stats.stayed or 0 }}</div>
+          <div class="kpi-chip-lbl">Will Stay</div>
+        </div>
+      </div>
+      <div class="kpi-chip">
+        <div class="kpi-chip-icon">⚡</div>
+        <div>
+          <div class="kpi-chip-val" style="color:var(--amber)">{{ stats.high_risk or 0 }}</div>
+          <div class="kpi-chip-lbl">High Risk</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div class="search-wrap">
+          <span class="icon">🔍</span>
+          <input type="text" id="searchInput" placeholder="Search customer ID, label…" oninput="filterTable()"/>
+        </div>
+        <div class="filter-group" id="riskFilters">
+          <button class="fbtn active" onclick="setFilter('ALL',this)">All</button>
+          <button class="fbtn" onclick="setFilter('HIGH',this)">🔴 High Risk</button>
+          <button class="fbtn" onclick="setFilter('MEDIUM',this)">🟡 Medium</button>
+          <button class="fbtn" onclick="setFilter('LOW',this)">🟢 Low</button>
+          <button class="fbtn" onclick="setFilter('CHURN',this)">⚠️ Churn</button>
+          <button class="fbtn" onclick="setFilter('STAY',this)">✅ Stay</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)" id="countLabel">Showing {{ rows|length }} records</div>
+        {% if rows %}
+        <button onclick="showClearModal()" class="btn btn-danger btn-sm" style="padding:4px 12px;font-size:11px;">🗑️ Clear All History</button>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="tbl-card">
+      <div class="tbl-wrap">
+        {% if rows %}
+        <table id="histTable">
+          <thead>
+            <tr>
+              <th onclick="sortBy('id')" class="sorted">#<span class="sort-arrow" id="arr-id">↓</span></th>
+              <th onclick="sortBy('customer_id')">Customer<span class="sort-arrow" id="arr-customer_id"></span></th>
+              <th onclick="sortBy('label')">Label<span class="sort-arrow" id="arr-label"></span></th>
+              <th onclick="sortBy('risk')">Risk<span class="sort-arrow" id="arr-risk"></span></th>
+              <th onclick="sortBy('probability')">Probability<span class="sort-arrow" id="arr-probability"></span></th>
+              <th onclick="sortBy('domain')">Domain<span class="sort-arrow" id="arr-domain"></span></th>
+              <th onclick="sortBy('source')">Source<span class="sort-arrow" id="arr-source"></span></th>
+              <th onclick="sortBy('username')">User<span class="sort-arrow" id="arr-username"></span></th>
+              <th onclick="sortBy('timestamp')">Time<span class="sort-arrow" id="arr-timestamp"></span></th>
+            </tr>
+          </thead>
+          <tbody id="tblBody">
+            {% for r in rows %}
+            <tr
+              data-risk="{{ r.risk }}"
+              data-pred="{{ r.prediction }}"
+              data-id="{{ r.id }}"
+              data-cid="{{ (r.customer_id or '') | lower }}"
+              data-label="{{ (r.label or '') | lower }}"
+              data-domain="{{ (r.domain or '') | lower }}"
+              data-user="{{ (r.username or '') | lower }}"
+              data-prob="{{ r.probability }}"
+            >
+              <td style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)">{{ r.id }}</td>
+              <td style="font-family:var(--font-mono);font-size:11px;color:var(--cyan)">{{ r.customer_id or '—' }}</td>
+              <td>
+                <span class="label-pill">
+                  {{ '⚠️' if r.prediction == 1 else '✅' }}
+                  <span style="color:{{ '#ef4444' if r.prediction==1 else '#10b981' }}">{{ r.label }}</span>
+                </span>
+              </td>
+              <td>
+                <span class="risk-pill r{{ r.risk[0] }}">{{ r.risk }}</span>
+              </td>
+              <td>
+                <div class="prob-wrap">
+                  <div class="prob-bar">
+                    <div class="prob-fill" style="width:{{ r.probability }}%;background:{{ '#ef4444' if r.probability>60 else '#f59e0b' if r.probability>30 else '#10b981' }}"></div>
+                  </div>
+                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)">{{ "%.1f"|format(r.probability) }}%</span>
+                </div>
+              </td>
+              <td style="color:var(--muted2);font-size:11px">{{ r.domain or '—' }}</td>
+              <td>
+                <span class="badge {% if r.source == 'bulk' %}badge-violet{% else %}badge-cyan{% endif %}">
+                  {{ '📂' if r.source == 'bulk' else '🔮' }} {{ r.source or '—' }}
+                </span>
+              </td>
+              <td style="color:var(--muted2);font-size:11px">{{ r.username or '—' }}</td>
+              <td style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)">{{ r.timestamp[:16] if r.timestamp else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty">
+          <div class="empty-icon">🔮</div>
+          <h3>No predictions yet</h3>
+          <p>Run your first prediction to see it appear here.</p>
+          <a href="{{ url_for('main.predict') }}" class="btn btn-primary" style="margin-top:16px;display:inline-flex">
+            → Make a Prediction
+          </a>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="tbl-footer">
+        <span>Showing <b id="visibleCount">{{ rows|length }}</b> of <b>{{ rows|length }}</b> records</span>
+        <span>
+          <a href="{{ url_for('main.export_csv') }}" style="color:var(--cyan)">Export all as CSV →</a>
+        </span>
+      </div>
+    </div>
+
+  </div><!-- /page-body -->
+</div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<script>
+// ── All row data from server ──────────────────────────────────────────
+const allRows = Array.from(document.querySelectorAll('#tblBody tr[data-risk]'));
+let _filter = 'ALL';
+let _sortCol = 'id';
+let _sortAsc  = false;
+
+function setFilter(f, btn) {
+  _filter = f;
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filterTable();
+}
+
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  let visible = 0;
+
+  allRows.forEach(row => {
+    const risk = row.dataset.risk;
+    const pred = parseInt(row.dataset.pred);
+    const searchText = [
+      row.dataset.cid, row.dataset.label, row.dataset.domain, row.dataset.user
+    ].join(' ');
+
+    let show = true;
+    if (_filter === 'HIGH'   && risk !== 'HIGH')   show = false;
+    if (_filter === 'MEDIUM' && risk !== 'MEDIUM') show = false;
+    if (_filter === 'LOW'    && risk !== 'LOW')    show = false;
+    if (_filter === 'CHURN'  && pred !== 1)        show = false;
+    if (_filter === 'STAY'   && pred !== 0)        show = false;
+    if (q && !searchText.includes(q))              show = false;
+
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  document.getElementById('visibleCount').textContent = visible;
+  document.getElementById('countLabel').textContent   = `Showing ${visible} records`;
+}
+
+// ── Sort ──────────────────────────────────────────────────────────────
+const TYPE_NUM = ['id', 'probability'];
+function sortBy(col) {
+  if (_sortCol === col) _sortAsc = !_sortAsc;
+  else { _sortCol = col; _sortAsc = true; }
+
+  // Update header arrows
+  document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+  document.querySelectorAll('thead th').forEach(th => th.classList.remove('sorted'));
+  const arrowEl = document.getElementById('arr-' + col);
+  if (arrowEl) { arrowEl.textContent = _sortAsc ? '↑' : '↓'; arrowEl.closest('th').classList.add('sorted'); }
+
+  const tbody = document.getElementById('tblBody');
+  const rows  = Array.from(tbody.querySelectorAll('tr'));
+  const isNum = TYPE_NUM.includes(col);
+
+  rows.sort((a, b) => {
+    let va = a.dataset[col.replace('_id', 'Id').replace('_', '')] || '';
+    let vb = b.dataset[col.replace('_id', 'Id').replace('_', '')] || '';
+    // Handle data- attr names (snake_case → dataset camelCase for multi-word)
+    const dKey = col.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    va = a.dataset[dKey] ?? a.dataset[col] ?? '';
+    vb = b.dataset[dKey] ?? b.dataset[col] ?? '';
+    if (isNum) { va = parseFloat(va)||0; vb = parseFloat(vb)||0; }
+    if (va < vb) return _sortAsc ? -1 : 1;
+    if (va > vb) return _sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+// Filter & sort scripts stay as-is
+document.querySelectorAll('.flash').forEach(el => { setTimeout(() => el.remove(), 5000); });
+</script>
+<!-- ═══ CLEAR ALL MODAL ════════════════════════════════════════ -->
+<div id="clearModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);align-items:center;justify-content:center;">
+  <div style="background:var(--card);border:1px solid rgba(239,68,68,.4);border-radius:16px;padding:36px 40px;max-width:420px;width:90%;box-shadow:0 32px 80px rgba(0,0,0,.8);text-align:center;animation:fadeIn .25s ease;">
+    <div style="font-size:48px;margin-bottom:16px;">🗑️</div>
+    <div style="font-family:var(--font-head);font-size:20px;font-weight:800;margin-bottom:8px;color:#fca5a5;">Clear All History?</div>
+    <div style="font-size:13px;color:var(--muted2);line-height:1.6;margin-bottom:28px;">
+      This will permanently delete <strong style="color:var(--text)">all {{ rows|length }} prediction records</strong> from the database.<br/>
+      <span style="color:#fca5a5;font-size:11px;">⚠️ This action cannot be undone.</span>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button onclick="hideClearModal()" class="btn btn-ghost" style="flex:1;justify-content:center;">✕ Cancel</button>
+      <form method="POST" action="{{ url_for('main.clear_history') }}" style="flex:1;">
+        <button type="submit" class="btn btn-danger" style="width:100%;justify-content:center;padding:11px;">🗑️ Yes, Clear All</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- THEME TOGGLE -->
+<button class="global-theme-btn" onclick="toggleTheme()">
+  <span id="gti">☀️</span><span id="gtl">Light</span>
+</button>
+
+<style>
+@keyframes fadeIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+</style>
+
+<script>
+// Theme
+const html=document.documentElement;
+function setTheme(t){html.setAttribute('data-theme',t);const d=t==='dark';document.getElementById('gti').textContent=d?'☀️':'🌙';document.getElementById('gtl').textContent=d?'Light':'Dark';localStorage.setItem('churnmaster-theme',t);}
+function toggleTheme(){setTheme(html.getAttribute('data-theme')==='dark'?'light':'dark');}
+setTheme(localStorage.getItem('churnmaster-theme')||'dark');
+
+// Modal
+function showClearModal(){const m=document.getElementById('clearModal');m.style.display='flex';}
+function hideClearModal(){document.getElementById('clearModal').style.display='none';}
+document.getElementById('clearModal').addEventListener('click',function(e){if(e.target===this)hideClearModal();});
+
+// Flashes
+document.querySelectorAll('.flash').forEach(el=>{setTimeout(()=>el.remove(),5000);});
+</script>
+</body>
+</html>

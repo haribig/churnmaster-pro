@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Prediction Result — ChurnMaster Pro</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<style>
+/* ── Verdict banner ──────────────────────────────────────── */
+.verdict {
+  border-radius:var(--radius); padding:24px 28px; margin-bottom:18px;
+  display:flex; align-items:center; justify-content:space-between; gap:20px;
+  position:relative; overflow:hidden;
+}
+.verdict.churn  { background:rgba(239,68,68,.08);  border:1px solid rgba(239,68,68,.2);  }
+.verdict.stay   { background:rgba(16,185,129,.08); border:1px solid rgba(16,185,129,.2); }
+.verdict::before {
+  content:''; position:absolute; top:0; left:0; bottom:0; width:4px;
+}
+.verdict.churn::before { background:var(--red); }
+.verdict.stay::before  { background:var(--green); }
+.verdict-left  { display:flex; align-items:center; gap:18px; }
+.verdict-icon  { font-size:44px; }
+.verdict-label { font-family:var(--font-head); font-size:22px; font-weight:800; }
+.verdict.churn .verdict-label { color:var(--red); }
+.verdict.stay  .verdict-label { color:var(--green); }
+.verdict-sub   { font-size:13px; color:var(--muted2); margin-top:3px; }
+.verdict-badges{ display:flex; gap:8px; flex-wrap:wrap; }
+
+/* ── Ring gauges ─────────────────────────────────────────── */
+.rings { display:flex; gap:16px; margin-bottom:18px; }
+.ring-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:22px; flex:1;
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+}
+.ring-label { font-family:var(--font-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+.ring-wrap { position:relative; width:100px; height:100px; }
+.ring-wrap svg { position:absolute; top:0; left:0; transform:rotate(-90deg); }
+.ring-bg    { stroke:var(--card2); fill:none; }
+.ring-fill  { fill:none; stroke-linecap:round; transition:stroke-dashoffset 1s ease; }
+.ring-num {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-head); font-size:18px; font-weight:800;
+}
+
+/* ── Three-col layout ─────────────────────────────────────── */
+.grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:18px; }
+
+/* ── Reasons cards ────────────────────────────────────────── */
+.reasons { display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
+.reason-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px 16px;
+  display:flex; align-items:flex-start; gap:12px;
+}
+.reason-icon { font-size:22px; flex-shrink:0; margin-top:2px; }
+.reason-title { font-size:13px; font-weight:700; margin-bottom:3px; }
+.reason-detail { font-size:11px; color:var(--muted2); line-height:1.65; }
+.reason-meta { display:flex; align-items:center; gap:7px; margin-top:6px; }
+.sev-badge { font-family:var(--font-mono); font-size:8px; padding:2px 7px; border-radius:4px; }
+.sev-HIGH   { background:rgba(239,68,68,.14);  color:#fca5a5; }
+.sev-MEDIUM { background:rgba(245,158,11,.14); color:#fcd34d; }
+.sev-LOW    { background:rgba(16,185,129,.14); color:#6ee7b7; }
+
+/* ── Action cards ─────────────────────────────────────────── */
+.actions { display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
+.action-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px 16px;
+  display:flex; align-items:flex-start; gap:12px;
+}
+.action-icon { font-size:20px; flex-shrink:0; }
+.action-title { font-size:13px; font-weight:700; margin-bottom:4px; }
+.action-detail { font-size:11px; color:var(--muted2); line-height:1.6; }
+.action-meta { display:flex; align-items:center; gap:8px; margin-top:7px; flex-wrap:wrap; }
+.action-stat {
+  font-family:var(--font-mono); font-size:8px; padding:2px 8px;
+  border-radius:4px; background:var(--card2); border:1px solid var(--border); color:var(--muted2);
+}
+.action-stat.priority { font-weight:700; }
+
+/* ── Timeline widget ──────────────────────────────────────── */
+.timeline-card {
+  border-radius:var(--radius); padding:18px; margin-bottom:18px;
+  display:flex; align-items:center; gap:16px;
+}
+.timeline-card.urgent { background:rgba(239,68,68,.07);  border:1px solid rgba(239,68,68,.2); }
+.timeline-card.medium { background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.2); }
+.timeline-card.low    { background:rgba(16,185,129,.07); border:1px solid rgba(16,185,129,.2); }
+.tl-icon { font-size:32px; flex-shrink:0; }
+.tl-label { font-family:var(--font-head); font-size:15px; font-weight:700; margin-bottom:3px; }
+.tl-card.urgent .tl-label { color:var(--red); }
+.tl-card.medium .tl-label { color:var(--amber); }
+.tl-card.low    .tl-label { color:var(--green); }
+.tl-desc { font-size:12px; color:var(--muted2); line-height:1.6; }
+
+/* ── Loyalty widget ────────────────────────────────────────── */
+.loyalty-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:20px; text-align:center; }
+.loyalty-grade {
+  font-family:var(--font-head); font-size:54px; font-weight:800; line-height:1;
+  background:linear-gradient(135deg,var(--cyan),var(--purple2));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  margin-bottom:4px;
+}
+.loyalty-score { font-size:12px; color:var(--muted); }
+
+/* ── Charts ────────────────────────────────────────────────── */
+.charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px; }
+.chart-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+.chart-card img { width:100%; height:auto; border-radius:6px; }
+.chart-full { margin-bottom:18px; }
+
+/* ── Download strip ───────────────────────────────────────── */
+.dl-strip {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:18px 22px;
+  display:flex; align-items:center; justify-content:space-between; gap:14px;
+  margin-bottom:18px;
+}
+.dl-title { font-size:14px; font-weight:600; }
+.dl-sub   { font-size:11px; color:var(--muted); }
+.dl-btns  { display:flex; gap:10px; flex-shrink:0; }
+
+@media(max-width:900px) {
+  .rings { flex-direction:column; }
+  .grid-3 { grid-template-columns:1fr; }
+  .charts-row { grid-template-columns:1fr; }
+  .dl-strip { flex-direction:column; align-items:flex-start; }
+}
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+<!-- ═══ SIDEBAR ═════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <div class="sb-logo-icon">🎯</div>
+      <div>
+        <div class="sb-logo-name">Churn<span>Master</span></div>
+        <div class="sb-logo-sub">Analytics Platform</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-user">
+    <div class="sb-avatar">{{ username[0].upper() }}</div>
+    <div>
+      <div class="sb-user-name">{{ username }}</div>
+      <div class="sb-user-role">analyst</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section-label">Analytics</div>
+    <a class="sb-nav-item" href="{{ url_for('main.dashboard') }}">
+      <span class="sb-nav-icon">📊</span>Dashboard
+    </a>
+    <a class="sb-nav-item" href="{{ url_for('main.history') }}">
+      <span class="sb-nav-icon">🕓</span>History
+    </a>
+    <a href="{{ url_for('main.powerbi_page') }}" class="sb-nav-item">
+      <span class="sb-nav-icon">📡</span>Power BI
+      <span style="margin-left:auto;background:rgba(242,200,17,.15);border:1px solid rgba(242,200,17,.3);color:#F2C811;font-size:8px;padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">NEW</span>
+    </a>
+    <div class="sb-section-label">Predictions</div>
+    <a class="sb-nav-item" href="{{ url_for('main.predict') }}">
+      <span class="sb-nav-icon">🔮</span>Single Predict
+    </a>
+    <a class="sb-nav-item" href="{{ url_for('main.bulk') }}">
+      <span class="sb-nav-icon">📂</span>Bulk Predict
+    </a>
+    <div class="sb-section-label">This Result</div>
+    <a class="sb-nav-item" href="{{ url_for('main.download_csv') }}">
+      <span class="sb-nav-icon">📄</span>Download CSV
+    </a>
+    <a class="sb-nav-item" href="{{ url_for('main.download_excel') }}">
+      <span class="sb-nav-icon">📊</span>Download Excel
+    </a>
+  </nav>
+  <div class="sb-footer">
+    <a href="{{ url_for('main.logout') }}" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">
+      🚪 Sign Out
+    </a>
+  </div>
+</aside>
+
+<!-- ═══ MAIN CONTENT ════════════════════════════════════════════════════ -->
+<div class="main-content">
+  <header class="topbar">
+    <div class="topbar-title">📋 Prediction Result</div>
+    <div class="topbar-right">
+      <a href="{{ url_for('main.predict') }}" class="btn btn-primary btn-sm">+ New Prediction</a>
+      <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost btn-sm">← Dashboard</a>
+    </div>
+  </header>
+
+  <div class="page-body">
+
+    <!-- ── Project Title Banner ── -->
+    <div class="info-callout anim-scale" style="background:rgba(118,75,162,.07);border-color:rgba(118,75,162,.2);margin-bottom:16px;">
+      <div style="font-size:16px;flex-shrink:0">🎓</div>
+      <div style="font-size:12px;color:var(--muted2);">
+        <strong style="color:var(--text)">Intelligent Customer Churn Prediction System</strong>
+        — Behavior Analysis for <strong style="color:var(--cyan)">Proactive Retention Strategies</strong>
+      </div>
+    </div>
+
+    <!-- ── Verdict banner ── -->
+    <div class="verdict {{ 'churn' if 'Churn' in prediction else 'stay' }} anim-scale">
+      <div class="verdict-left">
+        <div class="verdict-icon">{{ '⚠️' if 'Churn' in prediction else '✅' }}</div>
+        <div>
+          <div class="verdict-label">{{ prediction }}</div>
+          <div class="verdict-sub">Churn probability: <strong>{{ "%.1f"|format(churn_prob) }}%</strong></div>
+        </div>
+      </div>
+      <div class="verdict-badges">
+        {% if risk == 'HIGH' %}
+          <span class="badge badge-red">🔴 HIGH RISK</span>
+        {% elif risk == 'MEDIUM' %}
+          <span class="badge badge-amber">🟡 MEDIUM RISK</span>
+        {% else %}
+          <span class="badge badge-green">🟢 LOW RISK</span>
+        {% endif %}
+        {% if rich.loyalty_grade %}
+          <span class="badge badge-cyan">Loyalty Grade: {{ rich.loyalty_grade }}</span>
+        {% endif %}
+        {% if rich.timeline and rich.timeline.label %}
+          <span class="badge badge-violet">{{ rich.timeline.label }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── Ring gauges + Timeline + Loyalty ── -->
+    <div class="grid-3 anim-up d1">
+
+      <!-- Rings side-by-side in one card -->
+      <div class="card rings" style="grid-column:span 1">
+        <!-- Churn ring -->
+        <div class="ring-card">
+          <div class="ring-label">Churn Risk</div>
+          <div class="ring-wrap">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle class="ring-bg"   cx="50" cy="50" r="40" stroke-width="8"/>
+              <circle class="ring-fill" cx="50" cy="50" r="40" stroke-width="8"
+                      stroke="{{ '#ef4444' if churn_prob > 50 else '#10b981' }}"
+                      stroke-dasharray="{{ 2 * 3.14159 * 40 }}"
+                      stroke-dashoffset="{{ (2 * 3.14159 * 40) * (1 - churn_prob/100) }}"
+                      id="ring-churn"/>
+            </svg>
+            <div class="ring-num" style="color:{{ '#ef4444' if churn_prob > 50 else '#10b981' }}">
+              {{ "%.0f"|format(churn_prob) }}%
+            </div>
+          </div>
+        </div>
+
+        <!-- Stay ring -->
+        <div class="ring-card">
+          <div class="ring-label">Will Stay</div>
+          <div class="ring-wrap">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+              <circle class="ring-bg"   cx="50" cy="50" r="40" stroke-width="8"/>
+              <circle class="ring-fill" cx="50" cy="50" r="40" stroke-width="8"
+                      stroke="#10b981"
+                      stroke-dasharray="{{ 2 * 3.14159 * 40 }}"
+                      stroke-dashoffset="{{ (2 * 3.14159 * 40) * (1 - no_churn_prob/100) }}"
+                      id="ring-stay"/>
+            </svg>
+            <div class="ring-num" style="color:#10b981">
+              {{ "%.0f"|format(no_churn_prob) }}%
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline card -->
+      {% if rich.timeline %}
+      <div class="card timeline-card {{ rich.timeline.urgency }} anim-up d2" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <div class="tl-label" style="color:{{ '#ef4444' if rich.timeline.urgency=='high' else '#f59e0b' if rich.timeline.urgency=='medium' else '#10b981' }}">
+          {{ rich.timeline.label }}
+        </div>
+        <div class="tl-desc">{{ rich.timeline.description }}</div>
+      </div>
+      {% endif %}
+
+      <!-- Loyalty grade -->
+      {% if rich.loyalty_score is defined %}
+      <div class="loyalty-card anim-up d3">
+        <div style="font-family:var(--font-mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Loyalty Score</div>
+        <div class="loyalty-grade">{{ rich.loyalty_grade }}</div>
+        <div class="loyalty-score">{{ rich.loyalty_score }} / 100</div>
+        <div style="margin-top:10px">
+          <div class="progress-bar"><div class="progress-fill" style="width:{{ rich.loyalty_score }}%"></div></div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- ═══ BEHAVIOR ANALYSIS — WHY THEY WILL CHURN & HOW TO PREVENT ══ -->
+    <div class="card anim-up" style="margin-bottom:18px;border:1px solid rgba(0,212,255,.18);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+        <span style="font-size:22px">🧬</span>
+        <div>
+          <div style="font-family:var(--font-head);font-size:15px;font-weight:700;">Behavior Analysis for Proactive Retention Strategies</div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;">
+            AI-powered churn diagnosis · {{ rich.reasons|length if rich.reasons else 0 }} risk factors detected
+          </div>
+        </div>
+      </div>
+
+      <div class="churn-analysis-grid">
+
+        <!-- WHY THEY WILL CHURN -->
+        <div class="analysis-panel">
+          <div class="analysis-panel-head why">
+            <span style="font-size:18px">🚨</span>
+            <div>
+              <div class="analysis-panel-title">Why This Customer Will Churn</div>
+              <div style="font-size:10px;color:var(--muted2);margin-top:2px">Root cause behavioral analysis</div>
+            </div>
+          </div>
+          <div class="analysis-panel-body">
+            {% if rich.reasons %}
+              {% for r in rich.reasons %}
+              <div class="why-item">
+                <div class="why-icon">{{ r.icon }}</div>
+                <div style="flex:1">
+                  <div class="why-text"><strong>{{ r.title }}</strong></div>
+                  <div class="why-text">{{ r.detail }}</div>
+                  <div class="why-impact">
+                    ⚡ {{ r.severity }} SEVERITY · Impact: {{ r.impact|round(1) }}%
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="why-item">
+                <div class="why-icon">✅</div>
+                <div class="why-text">No significant churn risk factors detected for this customer profile.</div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- HOW TO PREVENT CHURN -->
+        <div class="analysis-panel">
+          <div class="analysis-panel-head how">
+            <span style="font-size:18px">🛡️</span>
+            <div>
+              <div class="analysis-panel-title">How to Prevent Churn</div>
+              <div style="font-size:10px;color:var(--muted2);margin-top:2px">AI-recommended retention playbook</div>
+            </div>
+          </div>
+          <div class="analysis-panel-body">
+            {% if rich.actions %}
+              {% for a in rich.actions %}
+              <div class="how-item">
+                <div class="how-icon">{{ a.icon }}</div>
+                <div style="flex:1">
+                  <div class="how-text"><strong>{{ a.action }}</strong></div>
+                  <div class="how-text">{{ a.detail }}</div>
+                  <div class="how-impact">
+                    🎯 {{ a.priority }} · Success Rate: {{ a.success_rate }} · Impact: {{ a.impact }}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="how-item">
+                <div class="how-icon">✅</div>
+                <div class="how-text">This customer has a healthy profile. Continue standard loyalty engagement.</div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div><!-- end churn-analysis-grid -->
+    </div>
+
+    <!-- ── Detailed Churn Reasons ── -->
+    {% if rich.reasons %}
+    <div class="card anim-up" style="margin-bottom:18px">
+      <div class="section-hd" style="margin-bottom:14px">
+        <div class="section-title">🔍 Why This Customer is at Risk</div>
+        <span class="badge badge-red">{{ rich.reasons|length }} Factors</span>
+      </div>
+      <div class="reasons">
+        {% for r in rich.reasons %}
+        <div class="reason-card">
+          <div class="reason-icon">{{ r.icon }}</div>
+          <div style="flex:1">
+            <div class="reason-title">{{ r.title }}</div>
+            <div class="reason-detail">{{ r.detail }}</div>
+            <div class="reason-meta">
+              <span class="sev-badge sev-{{ r.severity }}">{{ r.severity }}</span>
+              <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted)">Impact {{ r.impact|round(1) }}%</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Retention Actions ── -->
+    {% if rich.actions %}
+    <div class="card anim-up" style="margin-bottom:18px">
+      <div class="section-hd" style="margin-bottom:14px">
+        <div class="section-title">🎯 AI-Recommended Retention Playbook</div>
+        <span class="badge badge-green">{{ rich.actions|length }} Actions</span>
+      </div>
+      <div class="actions">
+        {% for a in rich.actions %}
+        <div class="action-card">
+          <div class="action-icon">{{ a.icon }}</div>
+          <div style="flex:1">
+            <div class="action-title">{{ a.action }}</div>
+            <div class="action-detail">{{ a.detail }}</div>
+            <div class="action-meta">
+              <span class="action-stat priority" style="color:{{ a.color }}; border-color:{{ a.color }}55">{{ a.priority }}</span>
+              <span class="action-stat">Effort: {{ a.effort }}</span>
+              <span class="action-stat">Impact: {{ a.impact }}</span>
+              <span class="action-stat">Success: {{ a.success_rate }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Visual Charts ── -->
+    <div class="charts-row anim-up">
+      {% if pie_chart %}
+      <div class="chart-card">
+        <div style="font-family:var(--font-mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Probability Distribution</div>
+        <img src="data:image/png;base64,{{ pie_chart }}" alt="Churn probability pie chart"/>
+      </div>
+      {% endif %}
+      {% if bar_chart %}
+      <div class="chart-card">
+        <div style="font-family:var(--font-mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Probability Comparison</div>
+        <img src="data:image/png;base64,{{ bar_chart }}" alt="Probability bar chart"/>
+      </div>
+      {% endif %}
+    </div>
+    {% if feature_chart %}
+    <div class="chart-card chart-full anim-up">
+      <div style="font-family:var(--font-mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Key Customer Profile Metrics</div>
+      <img src="data:image/png;base64,{{ feature_chart }}" alt="Feature chart"/>
+    </div>
+    {% endif %}
+
+    <!-- ── Download strip ── -->
+    <div class="dl-strip anim-up">
+      <div>
+        <div class="dl-title">💾 Export This Prediction</div>
+        <div class="dl-sub">Download a record of this analysis for your CRM or reporting system.</div>
+      </div>
+      <div class="dl-btns">
+        <a href="{{ url_for('main.download_csv') }}"   class="btn btn-success">📄 CSV</a>
+        <a href="{{ url_for('main.download_excel') }}" class="btn btn-violet">📊 Excel</a>
+      </div>
+    </div>
+
+  </div><!-- end page-body -->
+</div><!-- end main-content -->
+</div><!-- end app-layout -->
+
+<!-- GLOBAL THEME TOGGLE -->
+<button class="global-theme-btn" onclick="toggleTheme()" id="globalThemeBtn">
+  <span id="globalThemeIcon">☀️</span>
+  <span id="globalThemeLabel">Light</span>
+</button>
+
+<script>
+// ── Theme ─────────────────────────────────────────────────────
+const html = document.documentElement;
+function setTheme(t){
+  html.setAttribute('data-theme',t);
+  const d=t==='dark';
+  document.getElementById('globalThemeIcon').textContent = d?'☀️':'🌙';
+  document.getElementById('globalThemeLabel').textContent = d?'Light':'Dark';
+  localStorage.setItem('churnmaster-theme',t);
+}
+function toggleTheme(){ setTheme(html.getAttribute('data-theme')==='dark'?'light':'dark'); }
+setTheme(localStorage.getItem('churnmaster-theme')||'dark');
+
+// Animate ring fill from 0 on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const C = 2 * Math.PI * 40;
+  document.getElementById('ring-churn').style.strokeDashoffset = C;
+  document.getElementById('ring-stay').style.strokeDashoffset  = C;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      document.getElementById('ring-churn').style.strokeDashoffset = {{ (2 * 3.14159 * 40) * (1 - churn_prob/100) }};
+      document.getElementById('ring-stay').style.strokeDashoffset  = {{ (2 * 3.14159 * 40) * (1 - no_churn_prob/100) }};
+    });
+  });
+});
+</script>
+</body>
+</html>

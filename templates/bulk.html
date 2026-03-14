@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Bulk Predict — ChurnMaster Pro</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+/* Behavior Analysis Panel */
+.ba-panel {
+  display:none; margin-top:24px;
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden;
+}
+.ba-panel.show { display:block; }
+.ba-header {
+  padding:16px 22px; background:rgba(0,212,255,.04);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:12px;
+}
+.ba-title { font-family:var(--font-head); font-size:15px; font-weight:800; }
+.ba-sub   { font-family:var(--font-mono); font-size:9px; color:var(--muted2); text-transform:uppercase; letter-spacing:.12em; margin-top:2px; }
+.ba-body  { padding:20px 22px; }
+.ba-chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+.ba-chart-card { background:var(--card2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:16px; }
+.ba-chart-title { font-family:var(--font-head); font-size:13px; font-weight:700; margin-bottom:4px; }
+.ba-chart-sub   { font-family:var(--font-mono); font-size:9px; color:var(--muted2); text-transform:uppercase; letter-spacing:.08em; margin-bottom:14px; }
+.ba-chart-wrap  { height:180px; position:relative; }
+
+/* Insight cards */
+.insight-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:20px; }
+.insight-card {
+  background:var(--card2); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:14px;
+}
+.insight-icon  { font-size:20px; margin-bottom:8px; }
+.insight-title { font-weight:700; font-size:13px; margin-bottom:4px; }
+.insight-val   { font-family:var(--font-mono); font-size:20px; font-weight:800; margin-bottom:4px; }
+.insight-desc  { font-size:11px; color:var(--muted2); line-height:1.5; }
+
+/* How it works card */
+.how-card {
+  background:rgba(0,212,255,.04); border:1px solid rgba(0,212,255,.15);
+  border-radius:var(--radius); padding:18px 20px; margin-bottom:16px;
+}
+.how-card h4 { font-size:13px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+.how-steps { display:flex; flex-direction:column; gap:8px; }
+.how-step  { display:flex; gap:10px; font-size:12px; color:var(--muted2); align-items:flex-start; }
+.how-num   { width:20px;height:20px;border-radius:6px;background:var(--cyan);color:#000;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px; }
+@media(max-width:700px){.ba-chart-grid{grid-template-columns:1fr}.insight-grid{grid-template-columns:1fr 1fr}}
+</style>
+<style>
+/* ── Upload zone ─────────────────────────────────────── */
+.upload-zone {
+  border:2px dashed var(--border2); border-radius:var(--radius);
+  padding:52px 32px; text-align:center; cursor:pointer;
+  transition:all .25s; position:relative; background:var(--card);
+}
+.upload-zone:hover, .upload-zone.over {
+  border-color:var(--cyan); background:rgba(0,212,255,.04);
+}
+.upload-zone input[type=file] {
+  position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%;
+}
+.upload-icon { font-size:52px; margin-bottom:16px; }
+.upload-title { font-family:var(--font-head); font-size:18px; font-weight:800; margin-bottom:6px; }
+.upload-sub   { font-size:13px; color:var(--muted2); margin-bottom:20px; line-height:1.6; }
+.upload-meta  { font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-top:12px; }
+.file-selected {
+  display:none; margin-top:14px;
+  background:var(--card2); border:1px solid var(--border2);
+  border-radius:var(--radius-sm); padding:10px 14px;
+  font-family:var(--font-mono); font-size:12px; color:var(--text);
+  align-items:center; gap:10px;
+}
+.file-selected.show { display:flex; }
+
+/* ── Info card ───────────────────────────────────────── */
+.info-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:20px 22px;
+}
+.info-card h3 { font-size:14px; font-weight:700; margin-bottom:12px; }
+.col-list { display:flex; flex-direction:column; gap:6px; }
+.col-row { display:flex; align-items:center; gap:10px; font-size:12px; }
+.col-name { font-family:var(--font-mono); color:var(--cyan); font-size:11px; width:160px; flex-shrink:0; }
+.col-desc { color:var(--muted2); }
+.col-req  { font-family:var(--font-mono); font-size:9px; padding:1px 7px; border-radius:4px; background:rgba(239,68,68,.1); color:#fca5a5; border:1px solid rgba(239,68,68,.2); flex-shrink:0; }
+
+/* ── Progress ────────────────────────────────────────── */
+.progress-section { display:none; }
+.progress-section.show { display:block; }
+.prog-bar-outer { height:8px; background:var(--card2); border-radius:99px; overflow:hidden; margin:10px 0; }
+.prog-bar-inner { height:100%; border-radius:99px; background:linear-gradient(90deg,var(--cyan),var(--purple2)); transition:width .4s ease; width:0%; }
+.prog-label { font-family:var(--font-mono); font-size:11px; color:var(--muted2); }
+
+/* ── Results ─────────────────────────────────────────── */
+.results-section { display:none; }
+.results-section.show { display:block; }
+
+.result-kpis { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px; }
+.rk-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:14px; text-align:center;
+}
+.rk-val { font-family:var(--font-head); font-size:22px; font-weight:800; margin-bottom:3px; }
+.rk-lbl { font-size:10px; color:var(--muted2); font-family:var(--font-mono); text-transform:uppercase; letter-spacing:.06em; }
+
+.tbl-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden;
+}
+.tbl-topbar {
+  padding:12px 16px; display:flex; align-items:center;
+  justify-content:space-between; border-bottom:1px solid var(--border); gap:10px; flex-wrap:wrap;
+}
+.tbl-search {
+  background:var(--card2); border:1.5px solid var(--border);
+  border-radius:var(--radius-sm); padding:7px 11px;
+  color:var(--text); font-size:12px; outline:none; width:200px; transition:all .2s;
+}
+.tbl-search:focus { border-color:var(--cyan); }
+.filter-row { display:flex; gap:6px; flex-wrap:wrap; }
+.fbtn { padding:4px 11px; border-radius:50px; font-size:9.5px; font-weight:700; font-family:var(--font-mono); border:1px solid var(--border2); background:transparent; cursor:pointer; color:var(--muted2); transition:all .15s; }
+.fbtn.active { background:var(--cyan); color:#000; border-color:var(--cyan); }
+.fbtn:hover:not(.active) { border-color:var(--muted2); color:var(--text); }
+.tbl-wrap { overflow-x:auto; max-height:420px; overflow-y:auto; }
+table { width:100%; border-collapse:collapse; }
+th { position:sticky; top:0; background:var(--card2); padding:9px 14px; text-align:left; font-size:9px; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:.1em; font-family:var(--font-mono); border-bottom:1px solid var(--border2); white-space:nowrap; }
+td { padding:9px 14px; font-size:12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(255,255,255,.018); }
+.risk-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:20px; font-size:9.5px; font-weight:700; font-family:var(--font-mono); }
+.rH { background:rgba(239,68,68,.12); color:#fca5a5; border:1px solid rgba(239,68,68,.25); }
+.rM { background:rgba(245,158,11,.12); color:#fcd34d; border:1px solid rgba(245,158,11,.25); }
+.rL { background:rgba(16,185,129,.12); color:#6ee7b7; border:1px solid rgba(16,185,129,.25); }
+.prob-wrap { display:flex; align-items:center; gap:7px; }
+.prob-bar  { height:4px; width:60px; background:var(--border2); border-radius:3px; overflow:hidden; }
+.prob-fill { height:100%; border-radius:3px; }
+.tbl-footer { padding:9px 16px; font-family:var(--font-mono); font-size:10px; color:var(--muted2); border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+
+::-webkit-scrollbar { width:4px; height:4px; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:4px; }
+@media(max-width:900px){ .result-kpis{grid-template-columns:repeat(3,1fr)} }
+@media(max-width:600px){ .result-kpis{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+<!-- ═══ SIDEBAR ════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <div class="sb-logo-icon">🎯</div>
+      <div>
+        <div class="sb-logo-name">Churn<span>Master</span></div>
+        <div class="sb-logo-sub">Pro Analytics Platform</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-user">
+    <div class="sb-avatar">👤</div>
+    <div>
+      <div class="sb-user-name">{{ username }}</div>
+      <div class="sb-user-role">{{ role }}</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section-label">Analytics</div>
+    <a class="sb-nav-item" href="{{ url_for('main.dashboard') }}">
+      <span class="sb-nav-icon">📊</span>Dashboard
+    </a>
+    <a class="sb-nav-item" href="{{ url_for('main.history') }}">
+      <span class="sb-nav-icon">🕓</span>History
+    </a>
+    <a href="{{ url_for('main.powerbi_page') }}" class="sb-nav-item">
+      <span class="sb-nav-icon">📡</span>Power BI
+      <span style="margin-left:auto;background:rgba(242,200,17,.15);border:1px solid rgba(242,200,17,.3);color:#F2C811;font-size:8px;padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">NEW</span>
+    </a>
+    <div class="sb-section-label">Predictions</div>
+    <a class="sb-nav-item" href="{{ url_for('main.predict') }}">
+      <span class="sb-nav-icon">🔮</span>Single Predict
+    </a>
+    <a class="sb-nav-item active" href="{{ url_for('main.bulk') }}">
+      <span class="sb-nav-icon">📂</span>Bulk Predict
+    </a>
+    <div class="sb-section-label">Export</div>
+    <a class="sb-nav-item" href="{{ url_for('main.export_csv') }}">
+      <span class="sb-nav-icon">📥</span>Export CSV
+    </a>
+  </nav>
+  <div class="sb-footer">
+    <a href="{{ url_for('main.logout') }}" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">
+      🚪 Sign Out
+    </a>
+  </div>
+</aside>
+
+<!-- ═══ MAIN CONTENT ═══════════════════════════════════════════════════ -->
+<div class="main-content">
+
+  <div class="topbar">
+    <div class="topbar-title">📂 Bulk Predict</div>
+    <div class="topbar-right">
+      <div class="topbar-pill">
+        <div class="dot"></div>
+        {{ model_meta.get('domain','Telecom') }} Model · {{ model_meta.get('n_features',0) }} features
+      </div>
+      <a href="{{ url_for('main.predict') }}" class="btn btn-ghost btn-sm">Single Predict</a>
+    </div>
+  </div>
+
+  <div class="page-body">
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start">
+
+      <!-- LEFT: Upload + Results -->
+      <div>
+
+        <!-- Upload section -->
+        <div id="uploadSection">
+          <div class="upload-zone" id="dropZone">
+            <input type="file" id="csvFile" accept=".csv" onchange="handleFile(this.files[0])"/>
+            <div class="upload-icon">📂</div>
+            <div class="upload-title">Drop your CSV file here</div>
+            <div class="upload-sub">
+              Upload a CSV with customer data to run predictions on all rows at once.<br/>
+              The model will score every customer and return churn probability + risk level.
+            </div>
+            <button class="btn btn-primary" type="button" onclick="document.getElementById('csvFile').click();event.stopPropagation()">
+              Browse File
+            </button>
+            <div class="upload-meta">Accepts: .csv &nbsp;·&nbsp; Max: 50,000 rows &nbsp;·&nbsp; Domain: {{ model_meta.get('domain','Telecom') }}</div>
+          </div>
+
+          <div class="file-selected" id="fileSelected">
+            <span style="font-size:20px">📄</span>
+            <div style="flex:1">
+              <div id="fileName" style="font-weight:700"></div>
+              <div id="fileSize" style="font-size:10px;color:var(--muted2);margin-top:2px"></div>
+            </div>
+            <button class="btn btn-primary" id="runBtn" onclick="runBulk()">
+              ▶ Run Predictions
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="clearFile()">✕</button>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-section card" id="progressSection" style="margin-top:16px;padding:20px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">⏳ Running predictions…</div>
+          <div class="prog-bar-outer"><div class="prog-bar-inner" id="progBar"></div></div>
+          <div class="prog-label" id="progLabel">Uploading and processing…</div>
+        </div>
+
+        <!-- Results -->
+        <div class="results-section" id="resultsSection" style="margin-top:20px">
+
+          <!-- Result KPIs -->
+          <div class="result-kpis" id="resultKpis"></div>
+
+          <!-- Result Table -->
+          <div class="tbl-card">
+            <div class="tbl-topbar">
+              <div style="display:flex;align-items:center;gap:8px">
+                <input class="tbl-search" id="resSearch" placeholder="🔍 Search…" oninput="filterResults()"/>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div class="filter-row">
+                  <button class="fbtn active" onclick="setResFilter('ALL',this)">All</button>
+                  <button class="fbtn" onclick="setResFilter('HIGH',this)">🔴 High</button>
+                  <button class="fbtn" onclick="setResFilter('MEDIUM',this)">🟡 Med</button>
+                  <button class="fbtn" onclick="setResFilter('LOW',this)">🟢 Low</button>
+                  <button class="fbtn" onclick="setResFilter('CHURN',this)">⚠️ Churn</button>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="downloadResults()">📥 CSV</button>
+              </div>
+            </div>
+            <div class="tbl-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Row</th>
+                    <th>Customer ID</th>
+                    <th>Label</th>
+                    <th>Risk</th>
+                    <th>Probability</th>
+                    <th>Top Reason</th>
+                  </tr>
+                </thead>
+                <tbody id="resBody"></tbody>
+              </table>
+            </div>
+            <div class="tbl-footer">
+              <span>Showing <b id="resCount">0</b> of <b id="resTotalCount">0</b> rows</span>
+              <span style="color:var(--muted2)">Saved to prediction history</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- BEHAVIOR ANALYSIS PANEL (appears after bulk results) -->
+        <div class="ba-panel" id="baBulkPanel">
+          <div class="ba-header">
+            <span style="font-size:22px">🧬</span>
+            <div>
+              <div class="ba-title">Behavior Analysis for Proactive Retention Strategies</div>
+              <div class="ba-sub">Aggregate churn risk insights across your entire customer dataset</div>
+            </div>
+          </div>
+          <div class="ba-body">
+
+            <!-- Insight metrics -->
+            <div class="insight-grid" id="baInsights"></div>
+
+            <!-- Charts -->
+            <div class="ba-chart-grid" style="margin-top:20px">
+              <div class="ba-chart-card">
+                <div class="ba-chart-title">Risk Distribution</div>
+                <div class="ba-chart-sub">HIGH · MEDIUM · LOW across all customers</div>
+                <div class="ba-chart-wrap"><canvas id="baDonut"></canvas></div>
+              </div>
+              <div class="ba-chart-card">
+                <div class="ba-chart-title">Churn vs Stay</div>
+                <div class="ba-chart-sub">Prediction outcome split</div>
+                <div class="ba-chart-wrap"><canvas id="baBar"></canvas></div>
+              </div>
+            </div>
+
+            <!-- Retention recommendations -->
+            <div style="margin-top:20px;padding:16px;background:rgba(0,200,150,.05);border:1px solid rgba(0,200,150,.15);border-radius:var(--radius-sm)">
+              <div style="font-weight:700;font-size:13px;margin-bottom:10px;color:var(--green)">🎯 Retention Strategy Recommendations</div>
+              <div id="baRecommendations" style="font-size:12px;color:var(--muted2);line-height:1.8"></div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /left -->
+
+      <!-- RIGHT: Info panel -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- HOW IT WORKS -->
+        <div class="how-card">
+          <h4>🧬 How Behavior Analysis Works</h4>
+          <div class="how-steps">
+            <div class="how-step"><div class="how-num">1</div><div><strong style="color:var(--text)">Upload CSV</strong> — one row per customer with feature columns</div></div>
+            <div class="how-step"><div class="how-num">2</div><div><strong style="color:var(--text)">ML Model scores each row</strong> — churn probability computed for all customers at once using the 6-algorithm ensemble</div></div>
+            <div class="how-step"><div class="how-num">3</div><div><strong style="color:var(--text)">Behavior Analysis appears</strong> — after results load, charts show risk distribution, churn breakdown, and top retention insights across the whole dataset</div></div>
+            <div class="how-step"><div class="how-num">4</div><div><strong style="color:var(--text)">Export or act</strong> — download filtered results as CSV or view individuals in History</div></div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>📋 How Bulk Predict Works</h3>
+          <div style="font-size:12px;color:var(--muted2);line-height:1.75">
+            <p>Upload a CSV with one customer per row. The model reads each row, scores it, and returns:</p>
+            <ul style="margin:10px 0 0 14px;display:flex;flex-direction:column;gap:5px">
+              <li>Churn probability (0–100%)</li>
+              <li>Risk level (HIGH / MEDIUM / LOW)</li>
+              <li>Prediction label (Will Churn / Will Stay)</li>
+              <li>Top contributing feature</li>
+            </ul>
+            <p style="margin-top:10px">All results are saved to your <a href="{{ url_for('main.history') }}" style="color:var(--cyan)">prediction history</a> automatically.</p>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>📁 Required CSV Columns</h3>
+          <p style="font-size:11px;color:var(--muted2);margin-bottom:12px">
+            The CSV must match the model's trained features. For the <b>{{ model_meta.get('domain','Telecom') }}</b> model:
+          </p>
+          <div class="col-list">
+            <div class="col-row"><span class="col-name">tenure</span><span class="col-req">required</span><span class="col-desc" style="font-size:10px;color:var(--muted)">months</span></div>
+            <div class="col-row"><span class="col-name">MonthlyCharges</span><span class="col-req">required</span></div>
+            <div class="col-row"><span class="col-name">TotalCharges</span><span class="col-req">required</span></div>
+            <div class="col-row"><span class="col-name">Contract</span><span class="col-req">required</span><span class="col-desc" style="font-size:10px;color:var(--muted)">Month-to-month / One year / Two year</span></div>
+            <div class="col-row"><span class="col-name">InternetService</span><span class="col-req">required</span></div>
+            <div class="col-row"><span class="col-name">customerID</span><span style="font-family:var(--font-mono);font-size:9px;padding:1px 7px;border-radius:4px;background:rgba(0,212,255,.08);color:var(--cyan);border:1px solid rgba(0,212,255,.2)">optional</span></div>
+            <div class="col-row" style="margin-top:4px"><span style="font-size:10px;color:var(--muted)">+ all other telecom feature columns</span></div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>💡 Sample CSV Format</h3>
+          <div style="background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:10px 12px;font-family:var(--font-mono);font-size:10px;color:var(--muted2);overflow-x:auto;line-height:1.7">
+            customerID,tenure,MonthlyCharges,…<br/>
+            C001,12,65.50,…<br/>
+            C002,36,89.00,…<br/>
+            C003,2,29.99,…
+          </div>
+          <p style="font-size:11px;color:var(--muted2);margin-top:10px">
+            Missing columns are filled with 0. Extra columns are ignored.
+          </p>
+        </div>
+
+      </div><!-- /right -->
+
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+let _selectedFile = null;
+let _resultData   = [];
+let _resFilter    = 'ALL';
+
+// ── Drag & Drop ───────────────────────────────────────────────────────
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', ()  => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.endsWith('.csv')) handleFile(f);
+  else showFlash('Please upload a .csv file.', 'error');
+});
+
+function handleFile(file) {
+  if (!file) return;
+  _selectedFile = file;
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+  document.getElementById('fileSelected').classList.add('show');
+}
+
+function clearFile() {
+  _selectedFile = null;
+  document.getElementById('csvFile').value = '';
+  document.getElementById('fileSelected').classList.remove('show');
+}
+
+// ── Run bulk predict ──────────────────────────────────────────────────
+async function runBulk() {
+  if (!_selectedFile) return;
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+
+  // Show progress
+  document.getElementById('progressSection').classList.add('show');
+  document.getElementById('resultsSection').classList.remove('show');
+  animProg(0, 40, 800);
+  document.getElementById('progLabel').textContent = 'Uploading CSV and running model…';
+
+  const formData = new FormData();
+  formData.append('file', _selectedFile);
+
+  try {
+    animProg(40, 85, 1200);
+    const res = await fetch('/bulk_predict', { method:'POST', body:formData });
+    const data = await res.json();
+    animProg(85, 100, 400);
+
+    if (!data.success) {
+      showFlash(data.error || 'Bulk prediction failed.', 'error');
+      document.getElementById('progressSection').classList.remove('show');
+    } else {
+      setTimeout(() => {
+        document.getElementById('progressSection').classList.remove('show');
+        showResults(data);
+      }, 500);
+    }
+  } catch(err) {
+    showFlash('Request failed: ' + err.message, 'error');
+    document.getElementById('progressSection').classList.remove('show');
+  }
+
+  btn.disabled = false; btn.textContent = '▶ Run Predictions';
+}
+
+function animProg(from, to, dur) {
+  const el = document.getElementById('progBar');
+  const start = performance.now();
+  (function step(now) {
+    const p = Math.min((now - start) / dur, 1);
+    el.style.width = (from + (to - from) * p) + '%';
+    if (p < 1) requestAnimationFrame(step);
+  })(start);
+}
+
+// ── Show Results ──────────────────────────────────────────────────────
+function showResults(data) {
+  _resultData = data.results || [];
+  const sec = document.getElementById('resultsSection');
+  sec.classList.add('show');
+
+  // KPI cards
+  const rate = data.churn_rate || 0;
+  document.getElementById('resultKpis').innerHTML = `
+    <div class="rk-card"><div class="rk-val" style="color:var(--cyan)">${data.total.toLocaleString()}</div><div class="rk-lbl">Total Rows</div></div>
+    <div class="rk-card"><div class="rk-val" style="color:var(--red)">${data.churned.toLocaleString()}</div><div class="rk-lbl">Will Churn</div></div>
+    <div class="rk-card"><div class="rk-val" style="color:var(--green)">${data.stayed.toLocaleString()}</div><div class="rk-lbl">Will Stay</div></div>
+    <div class="rk-card"><div class="rk-val" style="color:var(--red)">${data.high_risk.toLocaleString()}</div><div class="rk-lbl">High Risk</div></div>
+    <div class="rk-card"><div class="rk-val" style="color:var(--amber)">${rate.toFixed(1)}%</div><div class="rk-lbl">Churn Rate</div></div>
+  `;
+
+  document.getElementById('resTotalCount').textContent = _resultData.length.toLocaleString();
+  renderResTable(_resultData.slice(0, 500));
+  document.getElementById('resCount').textContent = Math.min(500, _resultData.length).toLocaleString();
+
+  // Scroll to results
+  sec.scrollIntoView({ behavior:'smooth', block:'start' });
+
+  // Build Behavior Analysis panel
+  buildBehaviorAnalysis(data);
+}
+
+// ── Behavior Analysis ─────────────────────────────────────────────────
+let baDonCh, baBarCh;
+function buildBehaviorAnalysis(data) {
+  const panel = document.getElementById('baBulkPanel');
+  if(!panel) return;
+  panel.classList.add('show');
+
+  const total   = data.total   || 0;
+  const churned = data.churned || 0;
+  const stayed  = data.stayed  || 0;
+  const high    = data.high_risk || 0;
+  const med     = Math.max(0, churned - high);
+  const low     = stayed;
+  const rate    = total>0 ? (churned/total*100).toFixed(1) : '0.0';
+  const retAtRisk = high + Math.round(med*0.4);
+
+  // Insight cards
+  document.getElementById('baInsights').innerHTML = `
+    <div class="insight-card">
+      <div class="insight-icon">📊</div>
+      <div class="insight-title">Churn Rate</div>
+      <div class="insight-val" style="color:#ef4444">${rate}%</div>
+      <div class="insight-desc">of all customers are predicted to leave. ${rate>25?'⚠️ Above industry average (20%)':'✅ Below industry average (20%)'}</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon">🔴</div>
+      <div class="insight-title">Immediate Action Needed</div>
+      <div class="insight-val" style="color:#f59e0b">${high.toLocaleString()}</div>
+      <div class="insight-desc">HIGH risk customers need immediate personal outreach — highest churn probability, act today.</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-icon">💰</div>
+      <div class="insight-title">Retention Opportunity</div>
+      <div class="insight-val" style="color:#00d4ff">${retAtRisk.toLocaleString()}</div>
+      <div class="insight-desc">customers can potentially be retained with targeted campaigns before they churn.</div>
+    </div>`;
+
+  // Donut chart
+  if(baDonCh) baDonCh.destroy();
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const bg = isDark ? '#0d1420' : '#ffffff';
+  baDonCh = new Chart(document.getElementById('baDonut'),{
+    type:'doughnut',
+    data:{
+      labels:['High Risk','Medium Risk','Low Risk'],
+      datasets:[{
+        data:[high,med,low],
+        backgroundColor:['#ef4444','#f59e0b','#10b981'],
+        borderColor:bg, borderWidth:4, hoverOffset:8
+      }]
+    },
+    options:{
+      cutout:'70%', responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{
+          display:true, position:'bottom',
+          labels:{color:isDark?'#8aa4cc':'#4a5568', font:{size:11}, padding:14, usePointStyle:true}
+        },
+        tooltip:{
+          backgroundColor:'rgba(10,16,28,.95)',
+          callbacks:{label:c=>'  '+c.label+': '+c.parsed.toLocaleString()+' ('+
+            (total>0?(c.parsed/total*100).toFixed(1):'0.0')+'%)'}
+        }
+      }
+    }
+  });
+
+  // Bar chart
+  if(baBarCh) baBarCh.destroy();
+  const gridCol = isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.06)';
+  baBarCh = new Chart(document.getElementById('baBar'),{
+    type:'bar',
+    data:{
+      labels:['Will Stay','Will Churn'],
+      datasets:[{
+        data:[stayed, churned],
+        backgroundColor:['rgba(16,185,129,.8)','rgba(239,68,68,.8)'],
+        borderColor:['#10b981','#ef4444'],
+        borderWidth:2, borderRadius:10, borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'rgba(10,16,28,.95)',callbacks:{label:c=>'  '+c.parsed.y.toLocaleString()+' customers'}}
+      },
+      scales:{
+        x:{grid:{color:gridCol},ticks:{color:'#6b7a99',font:{size:12,weight:'600'}}},
+        y:{grid:{color:gridCol},beginAtZero:true,ticks:{color:'#6b7a99',callback:v=>v.toLocaleString()}}
+      }
+    }
+  });
+
+  // Recommendations
+  const recs = [];
+  if(rate > 30) recs.push('🔴 <strong>Critical:</strong> Churn rate above 30% — launch emergency retention campaign for all HIGH risk customers immediately.');
+  else if(rate > 20) recs.push('🟡 <strong>Action Required:</strong> Churn rate above industry average — prioritize proactive outreach for HIGH and MEDIUM risk segments.');
+  else recs.push('🟢 <strong>Good Health:</strong> Churn rate is below industry average — maintain current engagement strategies.');
+  if(high>0) recs.push(`📞 <strong>Contact ${high.toLocaleString()} HIGH risk customers</strong> personally — offer contract upgrades, loyalty discounts, or dedicated support.`);
+  if(med>0) recs.push(`📧 <strong>Send targeted campaigns to ${med.toLocaleString()} MEDIUM risk customers</strong> — personalized email, bundle offers, or satisfaction surveys.`);
+  recs.push('📊 <strong>Export these results</strong> to Power BI for deeper segment analysis and visualization — use the CSV download button above.');
+  document.getElementById('baRecommendations').innerHTML = recs.map(r=>`<div style="padding:4px 0;border-bottom:1px solid var(--border)">→ ${r}</div>`).join('');
+
+  // Scroll to it
+  setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}), 600);
+}
+
+function renderResTable(rows) {
+  const body = document.getElementById('resBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--muted2)">No results match your filter</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(r => {
+    const p     = r.probability || 0;
+    const pCol  = p>=60?'#ef4444':p>=30?'#f59e0b':'#10b981';
+    const rCls  = r.risk==='HIGH'?'rH':r.risk==='MEDIUM'?'rM':'rL';
+    return `<tr data-risk="${r.risk}" data-pred="${r.prediction}">
+      <td style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)">${r.row}</td>
+      <td style="font-family:var(--font-mono);font-size:11px;color:var(--cyan)">${r.customerID||'—'}</td>
+      <td>${r.prediction===1?'⚠️':'✅'} <span style="color:${pCol}">${r.label}</span></td>
+      <td><span class="risk-pill ${rCls}">${r.risk}</span></td>
+      <td>
+        <div class="prob-wrap">
+          <div class="prob-bar"><div class="prob-fill" style="width:${p}%;background:${pCol}"></div></div>
+          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted2)">${p.toFixed(1)}%</span>
+        </div>
+      </td>
+      <td style="font-size:11px;color:var(--muted2)">${r.top_reason||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+let _resF = 'ALL';
+function setResFilter(f, btn) {
+  _resF = f;
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  filterResults();
+}
+function filterResults() {
+  const q = document.getElementById('resSearch').value.toLowerCase();
+  let rows = _resultData;
+  if (_resF==='HIGH')   rows=rows.filter(r=>r.risk==='HIGH');
+  if (_resF==='MEDIUM') rows=rows.filter(r=>r.risk==='MEDIUM');
+  if (_resF==='LOW')    rows=rows.filter(r=>r.risk==='LOW');
+  if (_resF==='CHURN')  rows=rows.filter(r=>r.prediction===1);
+  if (q) rows=rows.filter(r=>(r.customerID||'').toLowerCase().includes(q)||(r.label||'').toLowerCase().includes(q));
+  const shown=rows.slice(0,500);
+  renderResTable(shown);
+  document.getElementById('resCount').textContent=Math.min(rows.length,500).toLocaleString();
+  document.getElementById('resTotalCount').textContent=_resultData.length.toLocaleString();
+}
+
+function downloadResults() {
+  if (!_resultData.length) return;
+  const header = ['Row','CustomerID','Prediction','Probability','Risk','Label','TopReason'];
+  const lines  = [header.join(',')];
+  _resultData.forEach(r=>lines.push([r.row,r.customerID,r.prediction,r.probability,r.risk,r.label,r.top_reason||''].join(',')));
+  const blob = new Blob([lines.join('\n')],{type:'text/csv'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'bulk_predictions_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+function showFlash(msg, type) {
+  const el=document.createElement('div');
+  el.className=`flash ${type}`;
+  el.style.cssText='position:fixed;top:20px;right:20px;z-index:9999;max-width:380px';
+  el.innerHTML=`<span>${type==='error'?'⚠️':'✅'}</span><span>${msg}</span>`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),4000);
+}
+</script>
+</body>
+</html>

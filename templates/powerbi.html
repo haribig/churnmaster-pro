@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Power BI Analytics — ChurnMaster Pro</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── DATASET SELECTOR TABS ─────────────────────────────── */
+.ds-selector {
+  display: flex; gap: 0; margin-bottom: 24px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.ds-tab {
+  flex: 1; padding: 16px 20px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border-right: 1px solid var(--border); transition: all .2s;
+  background: transparent; border-top: 3px solid transparent;
+  position: relative;
+}
+.ds-tab:last-child { border-right: none; }
+.ds-tab:hover { background: rgba(255,255,255,.03); }
+.ds-tab.active { background: rgba(0,212,255,.05); }
+.ds-tab.active.telecom  { border-top-color: #00d4ff; background: rgba(0,212,255,.06); }
+.ds-tab.active.bank     { border-top-color: #10b981; background: rgba(16,185,129,.06); }
+.ds-tab.active.hr       { border-top-color: #8b5cf6; background: rgba(139,92,246,.06); }
+.ds-tab-icon  { font-size: 26px; }
+.ds-tab-label { font-family: var(--font-head); font-size: 13px; font-weight: 700; }
+.ds-tab-sub   { font-size: 10px; color: var(--muted2); font-family: var(--font-mono); }
+.ds-tab-badge {
+  position: absolute; top: 10px; right: 10px;
+  font-size: 9px; padding: 2px 7px; border-radius: 50px;
+  font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .06em;
+}
+.ds-tab.telecom .ds-tab-badge { background: rgba(0,212,255,.12); color: #00d4ff; border: 1px solid rgba(0,212,255,.3); }
+.ds-tab.bank    .ds-tab-badge { background: rgba(16,185,129,.12); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+.ds-tab.hr      .ds-tab-badge { background: rgba(139,92,246,.12); color: #8b5cf6; border: 1px solid rgba(139,92,246,.3); }
+
+/* ── DATASET PANEL ─────────────────────────────────────── */
+.ds-panel { display: none; }
+.ds-panel.active { display: block; animation: fadeInUp .3s ease; }
+@keyframes fadeInUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── DATASET HERO ──────────────────────────────────────── */
+.ds-hero {
+  border-radius: var(--radius); padding: 24px 28px; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 20px; overflow: hidden;
+}
+.ds-hero.telecom { background: linear-gradient(135deg, rgba(0,212,255,.08), rgba(0,100,200,.06)); border: 1px solid rgba(0,212,255,.2); }
+.ds-hero.bank    { background: linear-gradient(135deg, rgba(16,185,129,.08), rgba(5,150,105,.06)); border: 1px solid rgba(16,185,129,.2); }
+.ds-hero.hr      { background: linear-gradient(135deg, rgba(139,92,246,.08), rgba(109,40,217,.06)); border: 1px solid rgba(139,92,246,.2); }
+.ds-hero-icon {
+  width: 64px; height: 64px; border-radius: 16px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 30px;
+}
+.telecom .ds-hero-icon { background: rgba(0,212,255,.12); }
+.bank    .ds-hero-icon { background: rgba(16,185,129,.12); }
+.hr      .ds-hero-icon { background: rgba(139,92,246,.12); }
+.ds-hero-text h3 { font-family: var(--font-head); font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+.ds-hero-text p  { font-size: 12px; color: var(--muted2); max-width: 500px; line-height: 1.65; }
+.ds-hero-kpis    { margin-left: auto; display: flex; gap: 12px; flex-shrink: 0; }
+.ds-kpi { text-align: center; padding: 10px 16px; border-radius: 10px; background: rgba(0,0,0,.2); min-width: 72px; }
+.ds-kpi-val { font-family: var(--font-head); font-size: 20px; font-weight: 800; }
+.ds-kpi-lbl { font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; font-family: var(--font-mono); }
+
+/* ── CHARTS GRID ───────────────────────────────────────── */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.chart-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px; transition: border-color .2s;
+}
+.chart-card:hover { border-color: rgba(255,255,255,.14); }
+.chart-title { font-family: var(--font-head); font-size: 12px; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.chart-subtitle { font-size: 10px; color: var(--muted2); margin-bottom: 14px; }
+.chart-wrap { position: relative; height: 195px; }
+
+/* ── API + EMBED GRID ──────────────────────────────────── */
+.api-embed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.embed-panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.embed-panel-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--card2); }
+.embed-panel-title  { font-family: var(--font-head); font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.embed-status { font-family: var(--font-mono); font-size: 9px; padding: 3px 10px; border-radius: 50px; text-transform: uppercase; letter-spacing: .08em; }
+.embed-status.connected    { background: rgba(0,200,150,.1); border: 1px solid rgba(0,200,150,.3); color: var(--green); }
+.embed-status.disconnected { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.3); color: var(--amber); }
+.embed-body { padding: 18px; }
+.embed-iframe-wrap { width: 100%; height: 400px; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--border2); position: relative; background: rgba(9,13,22,.8); margin-top: 12px; }
+.embed-iframe-wrap iframe { width: 100%; height: 100%; border: none; }
+.embed-placeholder { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--muted2); }
+.embed-placeholder-icon { font-size: 44px; opacity: .35; }
+.embed-placeholder h3 { font-family: var(--font-head); font-size: 16px; color: var(--muted3); }
+.embed-placeholder p  { font-size: 11px; text-align: center; max-width: 300px; line-height: 1.65; }
+.url-row { display: flex; gap: 8px; }
+.url-input { flex:1; background: rgba(17,25,40,.9); border: 1.5px solid var(--border2); border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 11px; font-family: var(--font-mono); outline: none; transition: all .2s; }
+.url-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,212,255,.1); }
+html[data-theme="light"] .url-input { background: rgba(248,250,255,.9); }
+
+/* ── API CARD ──────────────────────────────────────────── */
+.api-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.api-card-title { font-family: var(--font-head); font-size: 13px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.api-ep { margin-bottom: 12px; }
+.api-ep-label { font-family: var(--font-mono); font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.api-ep-code { background: rgba(0,0,0,.3); border: 1px solid var(--border2); border-radius: 6px; padding: 7px 10px; font-family: var(--font-mono); font-size: 10px; color: var(--cyan); display: flex; align-items: center; justify-content: space-between; gap: 8px; word-break: break-all; }
+html[data-theme="light"] .api-ep-code { background: rgba(0,0,0,.05); }
+
+/* ── STEPS ─────────────────────────────────────────────── */
+.steps { display: flex; flex-direction: column; gap: 10px; }
+.step { display: flex; gap: 12px; align-items: flex-start; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; }
+.step-num { width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font-head); font-size: 12px; font-weight: 800; }
+.step-title { font-weight: 700; font-size: 12px; margin-bottom: 2px; }
+.step-desc  { font-size: 11px; color: var(--muted2); line-height: 1.6; }
+.feature-list { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: var(--muted2); line-height: 1.65; margin-bottom: 16px; }
+.feature-list div { display: flex; align-items: center; gap: 8px; }
+
+/* ── LIVE STRIP ────────────────────────────────────────── */
+.live-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+.live-chip { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; text-align: center; }
+.live-chip-val { font-family: var(--font-head); font-size: 22px; font-weight: 800; }
+.live-chip-lbl { font-family: var(--font-mono); font-size: 9px; color: var(--muted2); text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
+
+/* ── TOPBAR TAG ────────────────────────────────────────── */
+.topbar-ds-tag { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; padding: 3px 10px; border-radius: 6px; transition: all .2s; }
+.topbar-ds-tag.telecom { background: rgba(0,212,255,.1); border: 1px solid rgba(0,212,255,.25); color: #00d4ff; }
+.topbar-ds-tag.bank    { background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.25); color: #10b981; }
+.topbar-ds-tag.hr      { background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.25); color: #8b5cf6; }
+
+/* ── DS COLOR TAGS ─────────────────────────────────────── */
+.tag-tc { background: rgba(0,212,255,.1); border: 1px solid rgba(0,212,255,.25); color: #00d4ff; font-size: 9px; padding: 2px 8px; border-radius: 5px; font-family: var(--font-mono); }
+.tag-bk { background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.25); color: #10b981; font-size: 9px; padding: 2px 8px; border-radius: 5px; font-family: var(--font-mono); }
+.tag-hr { background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.25); color: #8b5cf6; font-size: 9px; padding: 2px 8px; border-radius: 5px; font-family: var(--font-mono); }
+
+@media(max-width:1100px){ .charts-grid { grid-template-columns:1fr 1fr; } }
+@media(max-width:900px){ .charts-grid{grid-template-columns:1fr} .api-embed-grid{grid-template-columns:1fr} .live-strip{grid-template-columns:1fr 1fr} .ds-selector{flex-direction:column} .ds-hero{flex-direction:column;align-items:flex-start} .ds-hero-kpis{margin-left:0} }
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+<!-- ═══ SIDEBAR ════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <div class="sb-logo-icon">🎯</div>
+      <div>
+        <div class="sb-logo-name">Churn<span>Master</span></div>
+        <div class="sb-logo-sub">Pro Analytics Platform</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-user">
+    <div class="sb-avatar">{{ username[0].upper() }}</div>
+    <div>
+      <div class="sb-user-name">{{ username }}</div>
+      <div class="sb-user-role">analyst</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section-label">INTELLIGENCE</div>
+    <a class="sb-nav-item" href="{{ url_for('main.dashboard') }}"><span class="sb-nav-icon">📊</span>Analytics</a>
+    <a class="sb-nav-item" href="{{ url_for('main.history') }}"><span class="sb-nav-icon">🕓</span>History</a>
+    <a class="sb-nav-item active" href="{{ url_for('main.powerbi_page') }}">
+      <span class="sb-nav-icon">📡</span>Power BI
+      <span style="margin-left:auto;background:rgba(242,200,17,.15);border:1px solid rgba(242,200,17,.3);color:#F2C811;font-size:8px;padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">NEW</span>
+    </a>
+    <div class="sb-section-label">PREDICTIONS</div>
+    <a class="sb-nav-item" href="{{ url_for('main.predict') }}"><span class="sb-nav-icon">🔮</span>Single Predict</a>
+    <a class="sb-nav-item" href="{{ url_for('main.bulk') }}"><span class="sb-nav-icon">📂</span>Bulk Predict</a>
+    <div class="sb-section-label">EXPORT</div>
+    <a class="sb-nav-item" href="{{ url_for('main.download_pbix') }}"><span class="sb-nav-icon">📥</span>Download .pbix</a>
+    <a class="sb-nav-item" href="{{ url_for('main.export_csv') }}"><span class="sb-nav-icon">📤</span>Export CSV</a>
+    <div class="sb-section-label" style="margin-top:8px;">DATASET VIEW</div>
+    <a class="sb-nav-item" href="#" onclick="switchDataset('telecom');return false;" id="sb-telecom">
+      <span class="sb-nav-icon">📱</span>Telecom Churn
+    </a>
+    <a class="sb-nav-item" href="#" onclick="switchDataset('bank');return false;" id="sb-bank">
+      <span class="sb-nav-icon">🏦</span>Bank Churn
+    </a>
+    <a class="sb-nav-item" href="#" onclick="switchDataset('hr');return false;" id="sb-hr">
+      <span class="sb-nav-icon">👔</span>HR Attrition
+    </a>
+  </nav>
+  <div class="sb-footer">
+    <a href="{{ url_for('main.logout') }}" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">🚪 Sign Out</a>
+  </div>
+</aside>
+
+<!-- ═══ MAIN CONTENT ════════════════════════════════════════════ -->
+<div class="main-content">
+  <header class="topbar">
+    <div class="topbar-title" style="display:flex;align-items:center;gap:10px;">
+      📡 Power BI Integration
+      <span class="topbar-ds-tag telecom" id="topbarTag">📱 Telecom Dataset</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-pill"><div class="dot"></div>Live API Ready</div>
+      <a href="{{ url_for('main.download_pbix') }}" class="btn btn-ghost btn-sm">⬇ .pbix</a>
+      <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost btn-sm">← Dashboard</a>
+    </div>
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}<div class="flash-container">{% for cat, msg in messages %}
+      <div class="flash {{ cat }}" onclick="this.remove()">
+        <span class="flash-icon">{{ '✅' if cat=='success' else '❌' if cat=='error' else 'ℹ️' }}</span>
+        <span>{{ msg }}</span><span class="flash-close">✕</span>
+      </div>{% endfor %}</div>{% endif %}
+  {% endwith %}
+
+  <div class="page-body">
+
+    <!-- LIVE STATS -->
+    <div class="live-strip anim-up">
+      <div class="live-chip"><div class="live-chip-val" style="color:var(--cyan)">{{ stats.total or 0 }}</div><div class="live-chip-lbl">Total Predictions</div></div>
+      <div class="live-chip"><div class="live-chip-val" style="color:var(--red)">{{ stats.churned or 0 }}</div><div class="live-chip-lbl">Will Churn</div></div>
+      <div class="live-chip"><div class="live-chip-val" style="color:var(--green)">{{ stats.stayed or 0 }}</div><div class="live-chip-lbl">Will Stay</div></div>
+      <div class="live-chip"><div class="live-chip-val" style="color:var(--amber)">{{ stats.high_risk or 0 }}</div><div class="live-chip-lbl">High Risk</div></div>
+    </div>
+
+    <!-- DATASET TABS -->
+    <div class="ds-selector anim-up">
+      <div class="ds-tab telecom active" onclick="switchDataset('telecom')" id="tab-telecom">
+        <span class="ds-tab-badge">300 records</span>
+        <div class="ds-tab-icon">📱</div>
+        <div class="ds-tab-label">Telecom Churn</div>
+        <div class="ds-tab-sub">Contract · Internet · Payment</div>
+      </div>
+      <div class="ds-tab bank" onclick="switchDataset('bank')" id="tab-bank">
+        <span class="ds-tab-badge">10,000 records</span>
+        <div class="ds-tab-icon">🏦</div>
+        <div class="ds-tab-label">Bank Customer Churn</div>
+        <div class="ds-tab-sub">Country · Age · Products</div>
+      </div>
+      <div class="ds-tab hr" onclick="switchDataset('hr')" id="tab-hr">
+        <span class="ds-tab-badge">1,470 records</span>
+        <div class="ds-tab-icon">👔</div>
+        <div class="ds-tab-label">HR Employee Attrition</div>
+        <div class="ds-tab-sub">Department · Role · Overtime</div>
+      </div>
+    </div>
+
+    <!-- ═══════════ TELECOM PANEL ═══════════ -->
+    <div class="ds-panel active" id="panel-telecom">
+      <div class="ds-hero telecom anim-up">
+        <div class="ds-hero-icon">📱</div>
+        <div class="ds-hero-text">
+          <h3 style="color:#00d4ff;">Telecom Customer Churn</h3>
+          <p>WA Telecom dataset — 300 customers across contract types, internet services, and payment methods. Download the ready-made .pbix dashboard or connect via the live API endpoint.</p>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+            <a href="{{ url_for('main.download_pbix') }}" class="btn btn-primary" style="background:linear-gradient(135deg,#F2C811,#E8A000);color:#000;border:none;font-size:12px;padding:8px 16px;">⬇ Download .pbix</a>
+            <a href="/api/powerbi_live/records" target="_blank" class="btn btn-ghost" style="font-size:12px;padding:8px 16px;">🔗 Live API</a>
+            <a href="/api/dataset/telecom" target="_blank" class="btn btn-ghost" style="font-size:12px;padding:8px 16px;border-color:rgba(0,212,255,.4);color:#00d4ff;">📊 Dataset API</a>
+          </div>
+        </div>
+        <div class="ds-hero-kpis">
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#00d4ff;">300</div><div class="ds-kpi-lbl">Customers</div></div>
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#ef4444;">46.3%</div><div class="ds-kpi-lbl">Churn Rate</div></div>
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#f59e0b;">3</div><div class="ds-kpi-lbl">Contracts</div></div>
+        </div>
+      </div>
+      <div class="charts-grid anim-up">
+        <div class="chart-card">
+          <div class="chart-title" style="color:#00d4ff;">📄 Contract Type</div>
+          <div class="chart-subtitle">Churn rate (%) by contract duration</div>
+          <div class="chart-wrap"><canvas id="tc_contract"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title" style="color:#00d4ff;">🌐 Internet Service</div>
+          <div class="chart-subtitle">Churn rate (%) by internet service type</div>
+          <div class="chart-wrap"><canvas id="tc_internet"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title" style="color:#00d4ff;">💳 Payment Method</div>
+          <div class="chart-subtitle">Churn rate (%) by payment method</div>
+          <div class="chart-wrap"><canvas id="tc_payment"></canvas></div>
+        </div>
+      </div>
+      <div class="api-embed-grid anim-up">
+        <div class="embed-panel">
+          <div class="embed-panel-header">
+            <div class="embed-panel-title">🖥️ Embed Report <span class="tag-tc">Telecom</span></div>
+            <div class="embed-status disconnected" id="embedStatus_telecom">No URL</div>
+          </div>
+          <div class="embed-body">
+            <div class="url-row">
+              <input type="text" class="url-input" id="embedUrl_telecom" placeholder="Paste Power BI embed URL — https://app.powerbi.com/reportEmbed?reportId=..." oninput="handleEmbedUrl('telecom',this.value)"/>
+              <button class="btn btn-primary" onclick="loadEmbed('telecom')" style="white-space:nowrap;font-size:11px;">📡 Load</button>
+              <button class="btn btn-ghost" onclick="clearEmbed('telecom')">✕</button>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:5px;">Power BI Service → File → Embed report → Website or portal → copy src URL</div>
+            <div class="embed-iframe-wrap" id="embedWrap_telecom">
+              <div class="embed-placeholder" id="embedPlaceholder_telecom">
+                <div class="embed-placeholder-icon">📊</div>
+                <h3>No Report Embedded Yet</h3>
+                <p>Paste your Power BI publish URL above and click <strong>Load</strong>.</p>
+                <a href="{{ url_for('main.download_pbix') }}" class="btn btn-primary" style="margin-top:6px;background:linear-gradient(135deg,#F2C811,#E8A000);color:#000;border:none;font-size:11px;">⬇ Download .pbix Dashboard</a>
+              </div>
+              <iframe id="embedFrame_telecom" style="display:none" allowfullscreen></iframe>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="api-card">
+            <div class="api-card-title">🔗 Telecom API Endpoints</div>
+            <div class="api-ep"><div class="api-ep-label">Prediction Records (for Power BI)</div>
+              <div class="api-ep-code"><span id="tc_api1">http://localhost:5000/api/powerbi_live/records</span><button onclick="copyEl('tc_api1',this)" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:9px;flex-shrink:0;">Copy</button></div></div>
+            <div class="api-ep"><div class="api-ep-label">Telecom Dataset CSV API</div>
+              <div class="api-ep-code" style="color:#00d4ff;"><span id="tc_api2">http://localhost:5000/api/dataset/telecom</span><button onclick="copyEl('tc_api2',this)" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:9px;flex-shrink:0;">Copy</button></div></div>
+            <div class="api-ep"><div class="api-ep-label">KPI Summary</div>
+              <div class="api-ep-code"><span id="tc_api3">http://localhost:5000/api/powerbi_live/summary</span><button onclick="copyEl('tc_api3',this)" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:9px;flex-shrink:0;">Copy</button></div></div>
+          </div>
+          <div class="api-card">
+            <div class="api-card-title">📊 Included .pbix Visuals</div>
+            <div class="feature-list">
+              <div><span style="color:var(--green)">✓</span>Churn rate by Contract Type</div>
+              <div><span style="color:var(--green)">✓</span>Tenure vs Churn probability scatter</div>
+              <div><span style="color:var(--green)">✓</span>Internet Service churn breakdown</div>
+              <div><span style="color:var(--green)">✓</span>Payment Method risk analysis</div>
+              <div><span style="color:var(--green)">✓</span>Monthly Charges distribution</div>
+              <div><span style="color:var(--green)">✓</span>Senior Citizen vs churn rate</div>
+            </div>
+            <a href="{{ url_for('main.download_pbix') }}" class="btn btn-primary" style="width:100%;justify-content:center;background:linear-gradient(135deg,#F2C811,#E8A000);color:#000;border:none;font-size:12px;">⬇ Download Telecom Dashboard (.pbix)</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ BANK PANEL ═══════════ -->
+    <div class="ds-panel" id="panel-bank">
+      <div class="ds-hero bank anim-up">
+        <div class="ds-hero-icon">🏦</div>
+        <div class="ds-hero-text">
+          <h3 style="color:#10b981;">Bank Customer Churn</h3>
+          <p>10,000 bank customers from France, Germany & Spain. Analyse churn patterns by geography, age demographics, products held, and customer activity. Connect Power BI Desktop via the Dataset API.</p>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+            <a href="/api/dataset/bank" target="_blank" class="btn btn-primary" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;font-size:12px;padding:8px 16px;">📊 Open Bank Dataset API</a>
+            <a href="/api/dataset/bank/summary" target="_blank" class="btn btn-ghost" style="font-size:12px;padding:8px 16px;border-color:rgba(16,185,129,.4);color:#10b981;">📈 Summary API</a>
+          </div>
+        </div>
+        <div class="ds-hero-kpis">
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#10b981;">10k</div><div class="ds-kpi-lbl">Customers</div></div>
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#ef4444;">20.4%</div><div class="ds-kpi-lbl">Churn Rate</div></div>
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#f59e0b;">3</div><div class="ds-kpi-lbl">Countries</div></div>
+        </div>
+      </div>
+      <div class="charts-grid anim-up">
+        <div class="chart-card">
+          <div class="chart-title" style="color:#10b981;">🗺️ Churn by Country</div>
+          <div class="chart-subtitle">Churn rate (%) — France · Germany · Spain</div>
+          <div class="chart-wrap"><canvas id="bk_country"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title" style="color:#10b981;">📅 Churn by Age Group</div>
+          <div class="chart-subtitle">Churn rate (%) across age brackets</div>
+          <div class="chart-wrap"><canvas id="bk_age"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title" style="color:#10b981;">📦 Products Held</div>
+          <div class="chart-subtitle">Churn rate (%) by number of bank products</div>
+          <div class="chart-wrap"><canvas id="bk_products"></canvas></div>
+        </div>
+      </div>
+      <div class="api-embed-grid anim-up">
+        <div class="embed-panel">
+          <div class="embed-panel-header">
+            <div class="embed-panel-title">🖥️ Embed Report <span class="tag-bk">Bank</span></div>
+            <div class="embed-status disconnected" id="embedStatus_bank">No URL</div>
+          </div>
+          <div class="embed-body">
+            <div class="url-row">
+              <input type="text" class="url-input" id="embedUrl_bank" placeholder="Paste Power BI embed URL for Bank dashboard..." oninput="handleEmbedUrl('bank',this.value)"/>
+              <button class="btn btn-primary" onclick="loadEmbed('bank')" style="white-space:nowrap;font-size:11px;background:linear-gradient(135deg,#10b981,#059669);border:none;">📡 Load</button>
+              <button class="btn btn-ghost" onclick="clearEmbed('bank')">✕</button>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:5px;">Get Data → Web → paste Bank Dataset API URL → build visuals → publish → paste embed URL here</div>
+            <div class="embed-iframe-wrap" id="embedWrap_bank">
+              <div class="embed-placeholder" id="embedPlaceholder_bank">
+                <div class="embed-placeholder-icon">🏦</div>
+                <h3>No Bank Report Embedded</h3>
+                <p>Connect Power BI to the Bank Dataset API below, build a report, publish it, then paste the embed URL above.</p>
+                <a href="/api/dataset/bank" target="_blank" class="btn btn-primary" style="margin-top:6px;background:linear-gradient(135deg,#10b981,#059669);border:none;font-size:11px;color:#fff;">📊 Open Bank Dataset API</a>
+              </div>
+              <iframe id="embedFrame_bank" style="display:none" allowfullscreen></iframe>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="api-card">
+            <div class="api-card-title" style="color:#10b981;">🔗 Bank API Endpoints</div>
+            <div class="api-ep"><div class="api-ep-label">Full Records (for Power BI Web connection)</div>
+              <div class="api-ep-code" style="color:#10b981;"><span id="bk_api1">http://localhost:5000/api/dataset/bank</span><button onclick="copyEl('bk_api1',this)" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:9px;flex-shrink:0;">Copy</button></div></div>
+            <div class="api-ep"><div class="api-ep-label">Summary / KPIs</div>
+              <div class="api-ep-code" style="color:#10b981;"><span id="bk_api2">http://localhost:5000/api/dataset/bank/summary</span><button onclick="copyEl('bk_api2',this)" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:9px;flex-shrink:0;">Copy</button></div></div>
+          </div>
+          <div class="api-card">
+            <div class="api-card-title">🚀 Connect Bank Data to Power BI</div>
+            <div class="steps">
+              <div class="step">
+                <div class="step-num" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;">1</div>
+                <div><div class="step-title">Open Power BI Desktop</div><div class="step-desc">Create a new report or open an existing one.</div></div>
+              </div>
+              <div class="step">
+                <div class="step-num" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;">2</div>
+                <div><div class="step-title">Home → Get Data → Web</div><div class="step-desc">Paste the Bank Dataset API URL above. Power BI will load all 10,000 records automatically.</div></div>
+              </div>
+              <div class="step">
+                <div class="step-num" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;">3</div>
+                <div><div class="step-title">Build visuals → Publish → Embed</div><div class="step-desc">Publish to Power BI Service, then File → Embed → paste URL above.</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ HR PANEL ═══════════ -->
+    <div class="ds-panel" id="panel-hr">
+      <div class="ds-hero hr anim-up">
+        <div class="ds-hero-icon">👔</div>
+        <div class="ds-hero-text">
+          <h3 style="color:#8b5cf6;">HR Employee Attrition</h3>
+          <p>IBM HR Analytics dataset — 1,470 employees. Deep-dive into attrition by department, job role, overtime status, job satisfaction, income levels, and tenure patterns.</p>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+            <a href="/api/dataset/hr" target="_blank" class="btn btn-primary" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#fff;border:none;font-size:12px;padding:8px 16px;">📊 Open HR Dataset API</a>
+            <a href="/api/dataset/hr/summary" target="_blank" class="btn btn-ghost" style="font-size:12px;padding:8px 16px;border-color:rgba(139,92,246,.4);color:#8b5cf6;">📈 Summary API</a>
+          </div>
+        </div>
+        <div class="ds-hero-kpis">
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#8b5cf6;">1,470</div><div class="ds-kpi-lbl">Employees</div></div>
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#ef4444;">16.1%</div><div class="ds-kpi-lbl">Attrition</div></div>
+          <div class="ds-kpi"><div class="ds-kpi-val" style="color:#f59e0b;">9</div><div class="ds-kpi-lbl">Job Roles</div></div>
+        </div>
+      </div>
+      <div class="charts-grid anim-up">
+        <div class="chart-card">
+          <div class="chart-title" style="color:#8b5cf6;">🏢 Department Attrition</div>
+          <div class="chart-subtitle">Attrition rate (%) by department</div>
+          <div class="chart-wrap"><canvas id="hr_dept"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title" style="color:#8b5cf6;">💼 Job Role Risk</div>
+          <div class="chart-subtitle">Attrition rate (%) by job role</div>
+          <div class="chart-wrap"><canvas id="hr_role"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title" style="color:#8b5cf6;">⏰ Overtime Impact</div>
+          <div class="chart-subtitle">Attrition rate — Overtime vs No Overtime</div>
+          <div class="chart-wrap"><canvas id="hr_overtime"></canvas></div>
+        </div>
+      </div>
+      <div class="api-embed-grid anim-up">
+        <div class="embed-panel">
+          <div class="embed-panel-header">
+            <div class="embed-panel-title">🖥️ Embed Report <span class="tag-hr">HR</span></div>
+            <div class="embed-status disconnected" id="embedStatus_hr">No URL</div>
+          </div>
+          <div class="embed-body">
+            <div class="url-row">
+              <input type="text" class="url-input" id="embedUrl_hr" placeholder="Paste Power BI embed URL for HR Attrition dashboard..." oninput="handleEmbedUrl('hr',this.value)"/>
+              <button class="btn btn-primary" onclick="loadEmbed('hr')" style="white-space:nowrap;font-size:11px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);border:none;">📡 Load</button>
+              <button class="btn btn-ghost" onclick="clearEmbed('hr')">✕</button>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);margin-top:5px;">Get Data → Web → paste HR Dataset API URL → build visuals → publish → paste embed URL here</div>
+            <div class="embed-iframe-wrap" id="embedWrap_hr">
+              <div class="embed-placeholder" id="embedPlaceholder_hr">
+                <div class="embed-placeholder-icon">👔</div>
+                <h3>No HR Report Embedded</h3>
+                <p>Connect Power BI to the HR Dataset API below, build a report, publish it, then paste the embed URL above.</p>
+                <a href="/api/dataset/hr" target="_blank" class="btn btn-primary" style="margin-top:6px;background:linear-gradient(135deg,#8b5cf6,#6d28d9);border:none;font-size:11px;color:#fff;">📊 Open HR Dataset API</a>
+              </div>
+              <iframe id="embedFrame_hr" style="display:none" allowfullscreen></iframe>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="api-card">
+            <div class="api-card-title" style="color:#8b5cf6;">🔗 HR API Endpoints</div>
+            <div class="api-ep"><div class="api-ep-label">Full Records (for Power BI Web connection)</div>
+              <div class="api-ep-code" style="color:#8b5cf6;"><span id="hr_api1">http://localhost:5000/api/dataset/hr</span><button onclick="copyEl('hr_api1',this)" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:9px;flex-shrink:0;">Copy</button></div></div>
+            <div class="api-ep"><div class="api-ep-label">Summary / KPIs</div>
+              <div class="api-ep-code" style="color:#8b5cf6;"><span id="hr_api2">http://localhost:5000/api/dataset/hr/summary</span><button onclick="copyEl('hr_api2',this)" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:9px;flex-shrink:0;">Copy</button></div></div>
+          </div>
+          <div class="api-card">
+            <div class="api-card-title">📋 Key HR Dataset Fields</div>
+            <div class="feature-list">
+              <div><span style="color:#8b5cf6">▸</span>Age, Department, JobRole, JobLevel</div>
+              <div><span style="color:#8b5cf6">▸</span>MonthlyIncome, DailyRate, HourlyRate</div>
+              <div><span style="color:#8b5cf6">▸</span>OverTime, BusinessTravel, WorkLifeBalance</div>
+              <div><span style="color:#8b5cf6">▸</span>YearsAtCompany, YearsSinceLastPromotion</div>
+              <div><span style="color:#8b5cf6">▸</span>JobSatisfaction (1–4), EnvironmentSatisfaction</div>
+              <div><span style="color:#8b5cf6">▸</span><strong style="color:var(--text)">Attrition</strong> — target variable (Yes / No)</div>
+            </div>
+            <a href="/api/dataset/hr" target="_blank" class="btn btn-primary" style="width:100%;justify-content:center;background:linear-gradient(135deg,#8b5cf6,#6d28d9);border:none;font-size:12px;color:#fff;">📊 View Full HR Dataset API</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /page-body -->
+</div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<button class="global-theme-btn" onclick="toggleTheme()">
+  <span id="gti">☀️</span><span id="gtl">Light</span>
+</button>
+
+<script>
+// ── THEME ─────────────────────────────────────────────────────
+const html = document.documentElement;
+function setTheme(t){ html.setAttribute('data-theme',t); const d=t==='dark'; document.getElementById('gti').textContent=d?'☀️':'🌙'; document.getElementById('gtl').textContent=d?'Light':'Dark'; localStorage.setItem('churnmaster-theme',t); }
+function toggleTheme(){ setTheme(html.getAttribute('data-theme')==='dark'?'light':'dark'); }
+setTheme(localStorage.getItem('churnmaster-theme')||'dark');
+
+// ── BASE URL INJECTION ─────────────────────────────────────────
+const BASE = window.location.origin;
+['tc_api1','tc_api2','tc_api3','bk_api1','bk_api2','hr_api1','hr_api2'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.textContent = BASE + el.textContent.replace('http://localhost:5000','');
+});
+
+// ── DATASET SWITCHER ───────────────────────────────────────────
+const DS_CONFIG = {
+  telecom: { label:'📱 Telecom Dataset' },
+  bank:    { label:'🏦 Bank Dataset' },
+  hr:      { label:'👔 HR Attrition' }
+};
+
+function switchDataset(ds) {
+  document.querySelectorAll('.ds-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+ds).classList.add('active');
+  document.querySelectorAll('.ds-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+ds).classList.add('active');
+  const tag = document.getElementById('topbarTag');
+  tag.textContent = DS_CONFIG[ds].label;
+  tag.className = 'topbar-ds-tag '+ds;
+  ['telecom','bank','hr'].forEach(d => { const el=document.getElementById('sb-'+d); if(el) el.classList.toggle('active', d===ds); });
+  if(!chartsInit[ds]) initCharts(ds);
+  localStorage.setItem('pbi-active-ds', ds);
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// ── EMBED HELPERS ──────────────────────────────────────────────
+function handleEmbedUrl(ds, v){
+  const b = document.getElementById('embedStatus_'+ds);
+  b.textContent = v.trim()?'URL Set':'No URL';
+  b.className   = 'embed-status '+(v.trim()?'connected':'disconnected');
+}
+function loadEmbed(ds){
+  const url = document.getElementById('embedUrl_'+ds).value.trim();
+  if(!url){ alert('Please paste a Power BI embed URL first.'); return; }
+  localStorage.setItem('pbi-embed-url-'+ds, url);
+  document.getElementById('embedFrame_'+ds).src = url;
+  document.getElementById('embedFrame_'+ds).style.display = 'block';
+  document.getElementById('embedPlaceholder_'+ds).style.display = 'none';
+  const b = document.getElementById('embedStatus_'+ds);
+  b.textContent='Connected'; b.className='embed-status connected';
+}
+function clearEmbed(ds){
+  document.getElementById('embedUrl_'+ds).value='';
+  document.getElementById('embedFrame_'+ds).src='';
+  document.getElementById('embedFrame_'+ds).style.display='none';
+  document.getElementById('embedPlaceholder_'+ds).style.display='flex';
+  localStorage.removeItem('pbi-embed-url-'+ds);
+  const b = document.getElementById('embedStatus_'+ds);
+  b.textContent='No URL'; b.className='embed-status disconnected';
+}
+['telecom','bank','hr'].forEach(ds=>{
+  const saved = localStorage.getItem('pbi-embed-url-'+ds);
+  if(saved){ document.getElementById('embedUrl_'+ds).value=saved; handleEmbedUrl(ds,saved); }
+});
+
+// ── COPY ───────────────────────────────────────────────────────
+function copyEl(id, btn){ navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>{ btn.textContent='✓'; setTimeout(()=>btn.textContent='Copy',2000); }); }
+
+// ── CHARTS ────────────────────────────────────────────────────
+const chartsInit = {telecom:false, bank:false, hr:false};
+
+const isDark = () => document.documentElement.getAttribute('data-theme')==='dark';
+const gridColor = () => isDark()?'rgba(255,255,255,.05)':'rgba(0,0,0,.07)';
+const tickColor = () => isDark()?'#9ca3af':'#6b7280';
+
+const BASE_OPTS = {
+  responsive:true, maintainAspectRatio:false,
+  animation:{duration:700, easing:'easeOutQuart'},
+  plugins:{
+    legend:{display:false},
+    tooltip:{backgroundColor:'#1a2235',titleColor:'#d1d5db',bodyColor:'#9ca3af',borderColor:'#2d3748',borderWidth:1,
+      callbacks:{label: ctx => ' '+ctx.parsed.y.toFixed(1)+'%'}}
+  },
+  scales:{
+    x:{ grid:{color:'rgba(255,255,255,.05)',drawBorder:false}, ticks:{color:'#9ca3af',font:{size:10}} },
+    y:{ grid:{color:'rgba(255,255,255,.05)',drawBorder:false}, ticks:{color:'#9ca3af',font:{size:10},callback:v=>v+'%'}, suggestedMax:100, beginAtZero:true }
+  }
+};
+
+const HORIZ_OPTS = {
+  ...BASE_OPTS, indexAxis:'y',
+  plugins:{...BASE_OPTS.plugins, tooltip:{...BASE_OPTS.plugins.tooltip, callbacks:{label:ctx=>' '+ctx.parsed.x.toFixed(1)+'%'}}},
+  scales:{
+    x:{ grid:{color:'rgba(255,255,255,.05)',drawBorder:false}, ticks:{color:'#9ca3af',font:{size:10},callback:v=>v+'%'}, suggestedMax:100, beginAtZero:true },
+    y:{ grid:{display:false}, ticks:{color:'#9ca3af',font:{size:9.5}} }
+  }
+};
+
+const DOUGHNUT_OPTS = {
+  responsive:true, maintainAspectRatio:false,
+  animation:{duration:700},
+  plugins:{
+    legend:{display:true, position:'bottom', labels:{color:'#9ca3af',font:{size:10},boxWidth:12,padding:10}},
+    tooltip:{backgroundColor:'#1a2235',titleColor:'#d1d5db',bodyColor:'#9ca3af',borderColor:'#2d3748',borderWidth:1,
+      callbacks:{label:ctx=>' '+ctx.label+': '+ctx.parsed.toFixed(1)+'%'}}
+  }
+};
+
+function mkBar(id, labels, data, bgColors, borderColors){
+  const ctx = document.getElementById(id); if(!ctx) return;
+  new Chart(ctx,{ type:'bar', data:{ labels, datasets:[{ data, backgroundColor:bgColors, borderColor:borderColors, borderWidth:1.5, borderRadius:6, borderSkipped:false }] }, options:BASE_OPTS });
+}
+function mkHBar(id, labels, data, bgColors){
+  const ctx = document.getElementById(id); if(!ctx) return;
+  new Chart(ctx,{ type:'bar', data:{ labels, datasets:[{ data, backgroundColor:bgColors, borderRadius:4, borderSkipped:false }] }, options:HORIZ_OPTS });
+}
+function mkDonut(id, labels, data, colors){
+  const ctx = document.getElementById(id); if(!ctx) return;
+  new Chart(ctx,{ type:'doughnut', data:{ labels, datasets:[{ data, backgroundColor:colors, borderWidth:0, hoverOffset:8 }] }, options:DOUGHNUT_OPTS });
+}
+
+function initCharts(ds) {
+  chartsInit[ds] = true;
+  if(ds==='telecom'){
+    mkBar('tc_contract', ['Month-to-Month','One Year','Two Year'], [48.6,46.4,43.5], 'rgba(0,212,255,.45)', 'rgba(0,212,255,.9)');
+    mkDonut('tc_internet', ['DSL','Fiber Optic','No Internet'], [44.8,49.5,44.4], ['#00d4ff','#0088cc','#004488']);
+    mkHBar('tc_payment', ['Bank Transfer','Credit Card','Electronic Check','Mailed Check'], [50.0,52.7,44.2,38.4], ['rgba(0,212,255,.55)','rgba(0,212,255,.65)','rgba(0,212,255,.75)','rgba(0,212,255,.85)']);
+  }
+  if(ds==='bank'){
+    mkBar('bk_country', ['France','Germany','Spain'], [16.2,32.4,16.7],
+      ['rgba(16,185,129,.5)','rgba(239,68,68,.55)','rgba(16,185,129,.5)'],
+      ['rgba(16,185,129,.9)','rgba(239,68,68,.9)','rgba(16,185,129,.9)']);
+    mkBar('bk_age', ['< 30','30–40','40–50','50–60','60+'], [7.5,12.1,34.0,56.2,24.8],
+      ['rgba(16,185,129,.4)','rgba(16,185,129,.5)','rgba(245,158,11,.55)','rgba(239,68,68,.65)','rgba(239,68,68,.45)'],
+      ['rgba(16,185,129,.8)','rgba(16,185,129,.9)','rgba(245,158,11,.9)','rgba(239,68,68,.9)','rgba(239,68,68,.7)']);
+    mkDonut('bk_products', ['1 Product','2 Products','3 Products','4 Products'], [27.7,7.6,82.7,100.0], ['#10b981','#00d4ff','#f59e0b','#ef4444']);
+  }
+  if(ds==='hr'){
+    mkDonut('hr_dept', ['Human Resources','R&D','Sales'], [19.0,13.8,20.6], ['#8b5cf6','#6d28d9','#a78bfa']);
+    mkHBar('hr_role',
+      ['Sales Rep','Lab Tech','HR','Sales Exec.','Research Sci.','Healthcare Rep.','Mfg. Director','Manager','Research Dir.'],
+      [39.8,23.9,23.1,17.5,16.1,6.9,6.9,4.9,2.5],
+      ['rgba(239,68,68,.8)','rgba(239,68,68,.7)','rgba(245,158,11,.7)','rgba(139,92,246,.7)','rgba(139,92,246,.6)','rgba(139,92,246,.5)','rgba(16,185,129,.55)','rgba(16,185,129,.65)','rgba(16,185,129,.75)']
+    );
+    mkBar('hr_overtime', ['No Overtime','Overtime'], [10.4,30.5],
+      ['rgba(16,185,129,.5)','rgba(239,68,68,.6)'],
+      ['rgba(16,185,129,.9)','rgba(239,68,68,.9)']);
+  }
+}
+
+// ── INIT ───────────────────────────────────────────────────────
+window.addEventListener('load', ()=>{
+  const saved = localStorage.getItem('pbi-active-ds') || 'telecom';
+  if(saved !== 'telecom') switchDataset(saved);
+  else {
+    document.getElementById('sb-telecom').classList.add('active');
+    initCharts('telecom');
+  }
+});
+
+document.querySelectorAll('.flash').forEach(el=>{ setTimeout(()=>el.remove(), 5000); });
+</script>
+</body>
+</html>

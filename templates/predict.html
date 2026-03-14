@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Predict Churn — ChurnMaster Pro</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+<style>
+/* ── section cards ─────────────────────────────── */
+.section-card { margin-bottom:18px; }
+.section-card-header {
+  font-family:var(--font-mono); font-size:8.5px; letter-spacing:.15em;
+  text-transform:uppercase; color:var(--cyan); margin-bottom:14px;
+  padding-bottom:8px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:8px;
+}
+.form-grid  { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+.form-grid.cols3 { grid-template-columns:repeat(3,1fr); }
+.impact-badge { font-family:var(--font-mono); font-size:8.5px; padding:2px 7px; border-radius:4px; margin-left:auto; flex-shrink:0; }
+.high-imp { background:rgba(239,68,68,.12);  color:#fca5a5; }
+.med-imp  { background:rgba(245,158,11,.12); color:#fcd34d; }
+.low-imp  { background:rgba(16,185,129,.12); color:#6ee7b7; }
+
+/* ── domain switcher ───────────────────────────── */
+.domain-bar {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px 18px; margin-bottom:14px;
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+}
+.domain-label { font-family:var(--font-mono); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted2); white-space:nowrap; }
+.domain-pills { display:flex; gap:8px; }
+.domain-pill {
+  padding:7px 18px; border-radius:50px; cursor:pointer;
+  font-family:var(--font-mono); font-size:11px; font-weight:700;
+  border:1.5px solid var(--border2); color:var(--muted2);
+  background:var(--card2); transition:all .2s; white-space:nowrap;
+  display:flex; align-items:center; gap:6px;
+}
+.domain-pill:hover { border-color:var(--cyan); color:var(--cyan); }
+.domain-pill.active {
+  background:rgba(0,212,255,.1); border-color:var(--cyan);
+  color:var(--cyan); box-shadow:0 0 16px rgba(0,212,255,.18);
+}
+.domain-pill.active-bank  { background:rgba(245,158,11,.1); border-color:var(--amber); color:var(--amber); box-shadow:0 0 16px rgba(245,158,11,.18); }
+.domain-pill.active-hr    { background:rgba(139,92,246,.1); border-color:var(--violet); color:var(--violet); box-shadow:0 0 16px rgba(139,92,246,.18); }
+
+/* ── model selector ────────────────────────────── */
+.model-selector-bar {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius); padding:14px 18px; margin-bottom:14px;
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+}
+.model-selector-label { font-family:var(--font-mono); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--muted2); white-space:nowrap; }
+.model-pills { display:flex; gap:6px; flex-wrap:wrap; flex:1; }
+.model-pill {
+  padding:5px 12px; border-radius:50px; cursor:pointer;
+  font-family:var(--font-mono); font-size:10px; font-weight:600;
+  border:1.5px solid var(--border2); color:var(--muted2);
+  background:var(--card2); transition:all .2s;
+}
+.model-pill:hover  { border-color:var(--cyan); color:var(--cyan); }
+.model-pill.active { background:rgba(0,212,255,.1); border-color:var(--cyan); color:var(--cyan); }
+.model-stats-bar { display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.model-stat { display:flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:10px; color:var(--muted2); }
+.model-stat-val { font-size:13px; font-weight:700; color:var(--text); }
+.model-stat-val.highlight { color:var(--cyan); }
+
+/* ── behavior panel ────────────────────────────── */
+.behavior-section { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 20px; margin-bottom:14px; }
+.behavior-header { display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px; margin-bottom:14px; }
+.behavior-title { font-family:var(--font-head); font-size:14px; font-weight:700; }
+.behavior-sub { font-family:var(--font-mono); font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-top:2px; }
+.behavior-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.bv-metric { background:var(--card2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; text-align:center; }
+.bv-val { font-family:var(--font-head); font-size:18px; font-weight:800; color:var(--cyan); margin-bottom:3px; }
+.bv-lbl { font-family:var(--font-mono); font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; }
+
+/* ── form sections ─────────────────────────────── */
+.form-section { display:none; }
+.form-section.active { display:block; }
+
+/* ── info callout ──────────────────────────────── */
+.callout { background:rgba(0,212,255,.06); border:1px solid rgba(0,212,255,.15); border-radius:var(--radius); padding:12px 14px; margin-bottom:14px; font-size:12px; color:var(--muted2); line-height:1.7; display:flex; gap:10px; }
+.callout-icon { font-size:16px; flex-shrink:0; }
+
+/* ── btn row ────────────────────────────────────── */
+.btn-row { display:flex; gap:12px; margin-top:20px; }
+.btn-row .btn-primary { flex:1; justify-content:center; padding:14px; font-size:15px; }
+
+.hidden { display: none !important; }
+@media(max-width:720px) {
+  .form-grid,.form-grid.cols3 { grid-template-columns:1fr; }
+  .behavior-grid { grid-template-columns:1fr; }
+  .domain-pills,.model-pills { flex-wrap:wrap; }
+}
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+<!-- ═══ SIDEBAR ═══════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-mark">
+      <div class="sb-logo-icon">🎯</div>
+      <div>
+        <div class="sb-logo-name">Churn<span>Master</span></div>
+        <div class="sb-logo-sub">Analytics Platform</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-user">
+    <div class="sb-avatar">{{ username[0].upper() }}</div>
+    <div>
+      <div class="sb-user-name">{{ username }}</div>
+      <div class="sb-user-role">analyst</div>
+    </div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section-label">Analytics</div>
+    <a class="sb-nav-item" href="{{ url_for('main.dashboard') }}"><span class="sb-nav-icon">📊</span>Dashboard</a>
+    <a class="sb-nav-item" href="{{ url_for('main.history') }}"><span class="sb-nav-icon">🕓</span>History</a>
+    <a class="sb-nav-item" href="{{ url_for('main.powerbi_page') }}">
+      <span class="sb-nav-icon">📡</span>Power BI
+      <span style="margin-left:auto;background:rgba(242,200,17,.15);border:1px solid rgba(242,200,17,.3);color:#F2C811;font-size:8px;padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">NEW</span>
+    </a>
+    <div class="sb-section-label">Predictions</div>
+    <a class="sb-nav-item active" href="{{ url_for('main.predict') }}"><span class="sb-nav-icon">🔮</span>Single Predict</a>
+    <a class="sb-nav-item" href="{{ url_for('main.bulk') }}"><span class="sb-nav-icon">📂</span>Bulk Predict</a>
+    <div class="sb-section-label">Export</div>
+    <a class="sb-nav-item" href="{{ url_for('main.export_csv') }}"><span class="sb-nav-icon">📥</span>Export CSV</a>
+  </nav>
+  <div class="sb-footer">
+    <a href="{{ url_for('main.logout') }}" class="btn btn-danger btn-sm" style="width:100%;justify-content:center;">🚪 Sign Out</a>
+  </div>
+</aside>
+
+<!-- ═══ MAIN CONTENT ═══════════════════════════════════════════ -->
+<div class="main-content">
+  <header class="topbar">
+    <div class="topbar-title">🔮 Customer Churn Prediction</div>
+    <div class="topbar-right">
+      <div class="topbar-pill"><div class="dot"></div>Model Ready</div>
+      <a href="{{ url_for('main.dashboard') }}" class="btn btn-ghost btn-sm">← Dashboard</a>
+    </div>
+  </header>
+
+  <!-- ── Alert toasts ─────────────────────────────────────────── -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container">
+      {% for cat, msg in messages %}
+      <div class="flash {{ cat }}" onclick="this.remove()">
+        <span class="flash-icon">{{ '❌' if cat=='error' else '✅' if cat=='success' else '⚠️' }}</span>
+        <span>{{ msg }}</span><span class="flash-close">✕</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="page-body">
+
+    <!-- MODEL STATUS BANNER -->
+    {% if model_status is defined %}
+      {% if not model_status.loaded %}
+      <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);border-radius:10px;padding:16px 20px;display:flex;align-items:flex-start;gap:14px;margin-bottom:14px;" class="anim-up">
+        <div style="font-size:26px;flex-shrink:0;">❌</div>
+        <div>
+          <div style="font-family:var(--font-head);font-size:14px;font-weight:800;color:#ef4444;margin-bottom:4px;">Model Not Loaded — Predictions Disabled</div>
+          <div style="font-size:12px;color:var(--muted2);line-height:1.8;">
+            The ML model file <code style="color:#00d4ff;">models/model_bundle.pkl</code> is missing.<br>
+            <strong style="color:var(--text);">Fix 1:</strong> Make sure you run the app from inside the <code style="color:#00d4ff;">ChurnV3/</code> folder:
+            <code style="background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;color:#F2C811;">cd ChurnV3 &amp;&amp; python app.py</code><br>
+            <strong style="color:var(--text);">Fix 2:</strong> If <code style="color:#00d4ff;">models/</code> folder is empty, generate the model first:
+            <code style="background:rgba(0,0,0,.3);padding:2px 8px;border-radius:4px;color:#F2C811;">python train.py</code>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div style="background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.3);border-radius:10px;padding:14px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:14px;" class="anim-up">
+        <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:18px;">✅</span><span style="font-family:var(--font-head);font-size:13px;font-weight:800;color:#10b981;">Model Ready</span></div>
+        <div style="width:1px;height:28px;background:var(--border);"></div>
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Domain</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;">{{ model_status.domain }}</div></div>
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Accuracy</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;color:#00d4ff;">{{ model_status.accuracy }}%</div></div>
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">AUC</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;color:#00d4ff;">{{ model_status.auc }}%</div></div>
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Features</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;">{{ model_status.features }}</div></div>
+        <div><div style="font-family:var(--font-mono);font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;">Trained On</div><div style="font-family:var(--font-head);font-size:13px;font-weight:700;">{{ "{:,}".format(model_status.samples) }} rows</div></div>
+      </div>
+      {% endif %}
+    {% endif %}
+
+    <!-- Project banner -->
+    <div class="callout anim-up" style="background:rgba(118,75,162,.07);border-color:rgba(118,75,162,.2);margin-bottom:12px;">
+      <div class="callout-icon">🎓</div>
+      <div><strong style="color:var(--text)">Intelligent Customer Churn Prediction System</strong> — Machine Learning &amp; <strong style="color:var(--cyan)">Behavior Analysis for Proactive Retention Strategies</strong></div>
+    </div>
+
+    <!-- ═══ DOMAIN SWITCHER ═════════════════════════════════════ -->
+    <div class="domain-bar anim-up">
+      <div class="domain-label">🏢 Dataset Domain</div>
+      <div class="domain-pills">
+        <button class="domain-pill" id="dp-telecom" onclick="switchDomain('Telecom',this)">📡 Telecom</button>
+        <button class="domain-pill active-bank active" id="dp-bank" onclick="switchDomain('Bank',this)">🏦 Bank</button>
+        <button class="domain-pill" id="dp-hr"      onclick="switchDomain('HR',this)">👔 HR / Employee</button>
+      </div>
+      <div id="domainDesc" style="font-family:var(--font-mono);font-size:9.5px;color:var(--muted2);margin-left:auto;">
+        19 telecom service attributes · Telecom churn dataset
+      </div>
+    </div>
+
+    <!-- ═══ ML ALGORITHM SELECTOR ══════════════════════════════ -->
+    <div class="model-selector-bar anim-up card">
+      <div class="model-selector-label">🤖 ML Algorithm</div>
+      <div class="model-pills">
+        <button class="model-pill active" onclick="selectModel(this,'ensemble')">🧠 Ensemble</button>
+        <button class="model-pill" onclick="selectModel(this,'rf')">🌲 Random Forest</button>
+        <button class="model-pill" onclick="selectModel(this,'et')">🌳 Extra Trees</button>
+        <button class="model-pill" onclick="selectModel(this,'gb')">📈 Gradient Boost</button>
+        <button class="model-pill" onclick="selectModel(this,'lr')">📉 Logistic Reg.</button>
+        <button class="model-pill" onclick="selectModel(this,'svm')">🔷 SVM</button>
+        <button class="model-pill" onclick="selectModel(this,'ada')">🚀 AdaBoost</button>
+      </div>
+      <div class="model-stats-bar">
+        <div class="model-stat"><span>📋</span><span class="model-stat-val highlight" id="statName">Voting Ensemble</span></div>
+        <div class="model-stat"><span>🎯 Acc:</span><span class="model-stat-val" id="statAcc">—</span></div>
+        <div class="model-stat"><span>📊 AUC:</span><span class="model-stat-val" id="statAUC">—</span></div>
+        <div class="model-stat"><span>⚡ Prec:</span><span class="model-stat-val" id="statPrec">—</span></div>
+        <div class="model-stat"><span>🔁 Rec:</span><span class="model-stat-val" id="statRec">—</span></div>
+        <div class="model-stat"><span>🌟 F1:</span><span class="model-stat-val" id="statF1">—</span></div>
+      </div>
+    </div>
+
+    <!-- ═══ BEHAVIOR ANALYSIS PANEL ════════════════════════════ -->
+    <div class="behavior-section anim-up">
+      <div class="behavior-header">
+        <span style="font-size:20px">🧬</span>
+        <div>
+          <div class="behavior-title">Behavior Analysis — Live Profile</div>
+          <div class="behavior-sub" id="behaviorSubtitle">Fill fields below to see live risk indicators</div>
+        </div>
+        <div style="margin-left:auto">
+          <button onclick="document.getElementById('baExplain').classList.toggle('hidden')" 
+            style="background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.2);border-radius:6px;
+                   padding:4px 12px;font-size:10px;color:var(--cyan);cursor:pointer;font-family:var(--font-mono);">
+            ℹ️ How this works
+          </button>
+        </div>
+      </div>
+
+      <!-- How Behavior Analysis Works explanation -->
+      <div id="baExplain" class="hidden" style="margin-bottom:14px;background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.12);border-radius:10px;padding:14px 16px;">
+        <div style="font-weight:700;font-size:12px;margin-bottom:10px;color:var(--cyan)">🧬 How Behavior Analysis — Live Profile Works</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:11.5px;color:var(--muted2);line-height:1.65">
+          <div>
+            <div style="color:var(--text);font-weight:600;margin-bottom:3px">📍 Primary Risk Indicator</div>
+            Updates in real-time as you change key fields. For Bank: tracks credit score quality. 
+            For Telecom: tracks contract type (Month-to-Month = highest risk). For HR: detects overtime burden.
+          </div>
+          <div>
+            <div style="color:var(--text);font-weight:600;margin-bottom:3px">⏱ Tenure Risk</div>
+            Short customer relationships churn 3× more. Customers in their first 6 months 
+            (Telecom/Bank) or first 2 years at a company (HR) are flagged as HIGH risk automatically.
+          </div>
+          <div>
+            <div style="color:var(--text);font-weight:600;margin-bottom:3px">🔗 Engagement Score</div>
+            Tracks active engagement signals — number of services subscribed (Telecom), 
+            account activity (Bank), or job satisfaction level (HR). Low engagement = likely to leave.
+          </div>
+          <div>
+            <div style="color:var(--text);font-weight:600;margin-bottom:3px">⚡ Why Live?</div>
+            These indicators update instantly as you type — before you even submit the form. 
+            This gives you an early signal of whether the customer is high risk so you can 
+            adjust what data you're entering or flag them for retention before running the ML model.
+          </div>
+        </div>
+        <div style="margin-top:10px;padding:8px 12px;background:rgba(0,200,150,.05);border:1px solid rgba(0,200,150,.15);border-radius:6px;font-size:11px;color:var(--green)">
+          ✅ After submitting, the full ML model runs a deep behavior analysis and generates specific <strong>Why They Will Churn</strong> reasons and <strong>How to Prevent It</strong> action steps on the result page.
+        </div>
+      </div>
+
+      <div class="behavior-grid">
+        <div class="bv-metric"><div class="bv-val" id="bv1">—</div><div class="bv-lbl" id="bv1l">Primary Risk</div></div>
+        <div class="bv-metric"><div class="bv-val" id="bv2">—</div><div class="bv-lbl" id="bv2l">Tenure Risk</div></div>
+        <div class="bv-metric"><div class="bv-val" id="bv3">—</div><div class="bv-lbl" id="bv3l">Engagement</div></div>
+      </div>
+    </div>
+
+    <!-- ═══ FORM ════════════════════════════════════════════════ -->
+    <form method="POST" action="{{ url_for('main.predict') }}" id="predictForm">
+      <input type="hidden" name="selected_model" id="selectedModel" value="ensemble"/>
+      <input type="hidden" name="domain" id="domainInput" value="Bank"/>
+
+      <!-- ══════════ TELECOM FORM ══════════════════════════════ -->
+      <div class="form-section" id="form-Telecom">
+        <div class="callout"><div class="callout-icon">📊</div><div>Enter all 19 telecom customer attributes. <span class="badge badge-red" style="font-size:9px">HIGH IMPACT</span> fields have strongest influence. TotalCharges auto-calculates from Tenure × MonthlyCharges.</div></div>
+
+        <div class="card section-card anim-up">
+          <div class="section-card-header">👤 Demographics</div>
+          <div class="form-grid">
+            <div class="form-group"><label for="gender">Gender</label>
+              <select id="gender" name="gender" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">Female</option><option value="1">Male</option>
+              </select></div>
+            <div class="form-group"><label for="sc">Senior Citizen <span class="impact-badge low-imp">LOW</span></label>
+              <select id="sc" name="SeniorCitizen" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No (Under 65)</option><option value="1">Yes (65+)</option>
+              </select></div>
+            <div class="form-group"><label for="partner">Has Partner</label>
+              <select id="partner" name="Partner" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="dep">Dependents</label>
+              <select id="dep" name="Dependents" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">Yes</option>
+              </select></div>
+          </div>
+        </div>
+
+        <div class="card section-card anim-up d1">
+          <div class="section-card-header">💳 Account &amp; Billing</div>
+          <div class="form-grid">
+            <div class="form-group"><label for="tenure">Tenure (Months) <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="tenure" name="tenure" placeholder="e.g. 12" min="0" max="72" required oninput="autoTotal();updateBehavior()"/></div>
+            <div class="form-group"><label for="mc">Monthly Charges ($) <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="mc" name="MonthlyCharges" placeholder="e.g. 65.50" step="0.01" min="0" required oninput="autoTotal();updateBehavior()"/></div>
+            <div class="form-group"><label for="tc">Total Charges ($) <span class="impact-badge med-imp">MED</span></label>
+              <input class="form-input" type="number" id="tc" name="TotalCharges" placeholder="Auto-calculated" step="0.01" min="0" required/></div>
+            <div class="form-group"><label for="contract">Contract Type <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <select id="contract" name="Contract" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">Month-to-Month</option><option value="1">One Year</option><option value="2">Two Year</option>
+              </select></div>
+            <div class="form-group"><label for="pb">Paperless Billing</label>
+              <select id="pb" name="PaperlessBilling" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="pay">Payment Method <span class="impact-badge med-imp">MED</span></label>
+              <select id="pay" name="PaymentMethod" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">Bank Transfer</option><option value="1">Credit Card</option><option value="2">Electronic Check</option><option value="3">Mailed Check</option>
+              </select></div>
+          </div>
+        </div>
+
+        <div class="card section-card anim-up d2">
+          <div class="section-card-header">📡 Services Subscribed</div>
+          <div class="form-grid cols3">
+            <div class="form-group"><label for="phone">Phone Service</label>
+              <select id="phone" name="PhoneService" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="ml">Multiple Lines</label>
+              <select id="ml" name="MultipleLines" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">No Phone Svc</option><option value="2">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="inet">Internet Service <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <select id="inet" name="InternetService" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">DSL</option><option value="2">Fiber Optic</option>
+              </select></div>
+            <div class="form-group"><label for="osec">Online Security <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <select id="osec" name="OnlineSecurity" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">No Internet Svc</option><option value="2">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="obk">Online Backup</label>
+              <select id="obk" name="OnlineBackup" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">No Internet Svc</option><option value="2">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="dp2">Device Protection</label>
+              <select id="dp2" name="DeviceProtection" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">No Internet Svc</option><option value="2">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="ts">Tech Support <span class="impact-badge med-imp">MED</span></label>
+              <select id="ts" name="TechSupport" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">No Internet Svc</option><option value="2">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="stv">Streaming TV</label>
+              <select id="stv" name="StreamingTV" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">No Internet Svc</option><option value="2">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="smv">Streaming Movies</label>
+              <select id="smv" name="StreamingMovies" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">No Internet Svc</option><option value="2">Yes</option>
+              </select></div>
+          </div>
+        </div>
+      </div><!-- /Telecom -->
+
+      <!-- ══════════ BANK FORM ══════════════════════════════════ -->
+      <div class="form-section active" id="form-Bank">
+        <div class="callout" style="background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2);">
+          <div class="callout-icon">🏦</div>
+          <div>Enter 10 bank customer attributes. <span class="badge badge-amber" style="font-size:9px">Credit Score</span> and <span class="badge badge-amber" style="font-size:9px">Balance</span> are the strongest churn predictors in banking.</div>
+        </div>
+
+        <div class="card section-card anim-up">
+          <div class="section-card-header" style="color:var(--amber);">💰 Customer Profile</div>
+          <div class="form-grid">
+            <div class="form-group"><label for="b_credit">Credit Score <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="b_credit" name="credit_score" placeholder="e.g. 650" min="300" max="900" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="b_age">Age <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="b_age" name="age" placeholder="e.g. 38" min="18" max="100" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="b_tenure">Tenure (Years) <span class="impact-badge med-imp">MED</span></label>
+              <input class="form-input" type="number" id="b_tenure" name="tenure" placeholder="e.g. 5" min="0" max="15" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="b_balance">Account Balance ($) <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="b_balance" name="balance" placeholder="e.g. 85000" step="0.01" min="0" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="b_products">Number of Products <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <select id="b_products" name="products_number" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="1">1 Product</option><option value="2">2 Products</option><option value="3">3 Products</option><option value="4">4 Products</option>
+              </select></div>
+            <div class="form-group"><label for="b_salary">Estimated Salary ($) <span class="impact-badge low-imp">LOW</span></label>
+              <input class="form-input" type="number" id="b_salary" name="estimated_salary" placeholder="e.g. 75000" step="0.01" min="0" required oninput="updateBehavior()"/></div>
+          </div>
+        </div>
+
+        <div class="card section-card anim-up d1">
+          <div class="section-card-header" style="color:var(--amber);">🔖 Account Attributes</div>
+          <div class="form-grid">
+            <div class="form-group"><label for="b_gender">Gender</label>
+              <select id="b_gender" name="gender" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">Female</option><option value="1">Male</option>
+              </select></div>
+            <div class="form-group"><label for="b_country">Country</label>
+              <select id="b_country" name="country" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">France</option><option value="1">Germany</option><option value="2">Spain</option>
+              </select></div>
+            <div class="form-group"><label for="b_card">Has Credit Card <span class="impact-badge low-imp">LOW</span></label>
+              <select id="b_card" name="credit_card" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="b_active">Active Member <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <select id="b_active" name="active_member" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No (Inactive)</option><option value="1">Yes (Active)</option>
+              </select></div>
+          </div>
+        </div>
+      </div><!-- /Bank -->
+
+      <!-- ══════════ HR FORM ════════════════════════════════════ -->
+      <div class="form-section" id="form-HR">
+        <div class="callout" style="background:rgba(139,92,246,.06);border-color:rgba(139,92,246,.2);">
+          <div class="callout-icon">👔</div>
+          <div>Enter HR employee attributes. <span class="badge badge-violet" style="font-size:9px">OverTime</span>, <span class="badge badge-violet" style="font-size:9px">Job Satisfaction</span>, and <span class="badge badge-violet" style="font-size:9px">Years Since Promotion</span> are the strongest attrition predictors.</div>
+        </div>
+
+        <div class="card section-card anim-up">
+          <div class="section-card-header" style="color:var(--violet);">👤 Personal Info</div>
+          <div class="form-grid">
+            <div class="form-group"><label for="hr_age">Age <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="hr_age" name="Age" placeholder="e.g. 35" min="18" max="65" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="hr_gender">Gender</label>
+              <select id="hr_gender" name="HRGender" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">Female</option><option value="1">Male</option>
+              </select></div>
+            <div class="form-group"><label for="hr_marital">Marital Status</label>
+              <select id="hr_marital" name="MaritalStatus" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">Divorced</option><option value="1">Married</option><option value="2">Single</option>
+              </select></div>
+            <div class="form-group"><label for="hr_distance">Distance From Home (km) <span class="impact-badge med-imp">MED</span></label>
+              <input class="form-input" type="number" id="hr_distance" name="DistanceFromHome" placeholder="e.g. 10" min="1" max="30" required oninput="updateBehavior()"/></div>
+          </div>
+        </div>
+
+        <div class="card section-card anim-up d1">
+          <div class="section-card-header" style="color:var(--violet);">💼 Job Details</div>
+          <div class="form-grid">
+            <div class="form-group"><label for="hr_dept">Department</label>
+              <select id="hr_dept" name="Department" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">Human Resources</option><option value="1">Research &amp; Development</option><option value="2">Sales</option>
+              </select></div>
+            <div class="form-group"><label for="hr_role">Job Role</label>
+              <select id="hr_role" name="JobRole" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option>
+                <option value="Healthcare Representative">Healthcare Representative</option>
+                <option value="Human Resources">Human Resources</option>
+                <option value="Laboratory Technician">Laboratory Technician</option>
+                <option value="Manager">Manager</option>
+                <option value="Manufacturing Director">Manufacturing Director</option>
+                <option value="Research Director">Research Director</option>
+                <option value="Research Scientist">Research Scientist</option>
+                <option value="Sales Executive">Sales Executive</option>
+                <option value="Sales Representative">Sales Representative</option>
+              </select></div>
+            <div class="form-group"><label for="hr_level">Job Level</label>
+              <select id="hr_level" name="JobLevel" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="1">1 – Entry</option><option value="2">2 – Junior</option><option value="3">3 – Mid</option><option value="4">4 – Senior</option><option value="5">5 – Director</option>
+              </select></div>
+            <div class="form-group"><label for="hr_travel">Business Travel</label>
+              <select id="hr_travel" name="BusinessTravel" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">Non-Travel</option><option value="1">Travel Rarely</option><option value="2">Travel Frequently</option>
+              </select></div>
+            <div class="form-group"><label for="hr_overtime">OverTime <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <select id="hr_overtime" name="OverTime" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">No</option><option value="1">Yes</option>
+              </select></div>
+            <div class="form-group"><label for="hr_income">Monthly Income ($) <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="hr_income" name="MonthlyIncome" placeholder="e.g. 5000" min="1000" max="20000" required oninput="updateBehavior()"/></div>
+          </div>
+        </div>
+
+        <div class="card section-card anim-up d2">
+          <div class="section-card-header" style="color:var(--violet);">📈 Career History</div>
+          <div class="form-grid cols3">
+            <div class="form-group"><label for="hr_yac">Years At Company <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="hr_yac" name="YearsAtCompany" placeholder="e.g. 5" min="0" max="40" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="hr_ycr">Years In Current Role</label>
+              <input class="form-input" type="number" id="hr_ycr" name="YearsInCurrentRole" placeholder="e.g. 3" min="0" max="18" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="hr_ysp">Years Since Promotion <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <input class="form-input" type="number" id="hr_ysp" name="YearsSinceLastPromotion" placeholder="e.g. 2" min="0" max="15" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="hr_ywm">Years With Curr. Manager</label>
+              <input class="form-input" type="number" id="hr_ywm" name="YearsWithCurrManager" placeholder="e.g. 2" min="0" max="17" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="hr_twy">Total Working Years</label>
+              <input class="form-input" type="number" id="hr_twy" name="TotalWorkingYears" placeholder="e.g. 10" min="0" max="40" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="hr_ncw">Num Companies Worked</label>
+              <input class="form-input" type="number" id="hr_ncw" name="NumCompaniesWorked" placeholder="e.g. 3" min="0" max="9" required oninput="updateBehavior()"/></div>
+          </div>
+        </div>
+
+        <div class="card section-card anim-up d3">
+          <div class="section-card-header" style="color:var(--violet);">😊 Satisfaction &amp; Performance</div>
+          <div class="form-grid cols3">
+            <div class="form-group"><label for="hr_jsat">Job Satisfaction <span class="impact-badge high-imp">HIGH IMPACT</span></label>
+              <select id="hr_jsat" name="JobSatisfaction" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="1">1 – Low</option><option value="2">2 – Medium</option><option value="3">3 – High</option><option value="4">4 – Very High</option>
+              </select></div>
+            <div class="form-group"><label for="hr_esat">Environment Satisfaction</label>
+              <select id="hr_esat" name="EnvironmentSatisfaction" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="1">1 – Low</option><option value="2">2 – Medium</option><option value="3">3 – High</option><option value="4">4 – Very High</option>
+              </select></div>
+            <div class="form-group"><label for="hr_wlb">Work-Life Balance <span class="impact-badge med-imp">MED</span></label>
+              <select id="hr_wlb" name="WorkLifeBalance" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="1">1 – Bad</option><option value="2">2 – Good</option><option value="3">3 – Better</option><option value="4">4 – Best</option>
+              </select></div>
+            <div class="form-group"><label for="hr_jinv">Job Involvement</label>
+              <select id="hr_jinv" name="JobInvolvement" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="1">1 – Low</option><option value="2">2 – Medium</option><option value="3">3 – High</option><option value="4">4 – Very High</option>
+              </select></div>
+            <div class="form-group"><label for="hr_perf">Performance Rating</label>
+              <select id="hr_perf" name="PerformanceRating" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="3">3 – Excellent</option><option value="4">4 – Outstanding</option>
+              </select></div>
+            <div class="form-group"><label for="hr_psh">% Salary Hike</label>
+              <input class="form-input" type="number" id="hr_psh" name="PercentSalaryHike" placeholder="e.g. 15" min="11" max="25" required oninput="updateBehavior()"/></div>
+            <div class="form-group"><label for="hr_stock">Stock Option Level</label>
+              <select id="hr_stock" name="StockOptionLevel" class="form-select" required onchange="updateBehavior()">
+                <option value="">Select</option><option value="0">0 – None</option><option value="1">1 – Low</option><option value="2">2 – Medium</option><option value="3">3 – High</option>
+              </select></div>
+            <div class="form-group"><label for="hr_train">Training Times Last Year</label>
+              <input class="form-input" type="number" id="hr_train" name="TrainingTimesLastYear" placeholder="e.g. 3" min="0" max="6" required oninput="updateBehavior()"/></div>
+          </div>
+        </div>
+      </div><!-- /HR -->
+
+      <div class="btn-row anim-up d3">
+        <button type="submit" class="btn btn-primary">
+          🔮 &nbsp;Analyse Churn Risk
+          <span id="submitBadge" style="font-size:10px;opacity:.8;margin-left:4px;">[Telecom · Ensemble]</span>
+        </button>
+        <button type="reset" class="btn btn-ghost" onclick="resetAll()">↺ Reset</button>
+      </div>
+    </form>
+
+  </div><!-- /page-body -->
+</div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<!-- THEME TOGGLE -->
+<button class="global-theme-btn" onclick="toggleTheme()">
+  <span id="gti">☀️</span><span id="gtl">Light</span>
+</button>
+
+<script>
+// ══ THEME ══════════════════════════════════════════════════════
+const html=document.documentElement;
+function setTheme(t){html.setAttribute('data-theme',t);const d=t==='dark';document.getElementById('gti').textContent=d?'☀️':'🌙';document.getElementById('gtl').textContent=d?'Light':'Dark';localStorage.setItem('churnmaster-theme',t);}
+function toggleTheme(){setTheme(html.getAttribute('data-theme')==='dark'?'light':'dark');}
+setTheme(localStorage.getItem('churnmaster-theme')||'dark');
+
+// ══ STATE ══════════════════════════════════════════════════════
+let currentDomain='Bank';
+let currentModel='ensemble';
+
+// ══ DOMAIN SWITCH ══════════════════════════════════════════════
+const DOMAIN_DESC = {
+  Telecom: '19 telecom service attributes · Telecom churn dataset (model trained on Bank data)',
+  Bank:    '10 bank customer attributes · Bank churn dataset',
+  HR:      '24 employee attributes · HR attrition dataset',
+};
+const DOMAIN_BV = {
+  Telecom: {lbl1:'Contract Risk',lbl2:'Tenure Risk',lbl3:'Services Subscribed'},
+  Bank:    {lbl1:'Credit Score',lbl2:'Age Risk',lbl3:'Account Activity'},
+  HR:      {lbl1:'Overtime Risk',lbl2:'Tenure Risk',lbl3:'Job Satisfaction'},
+};
+
+function disableSection(sectionId, disabled){
+  const sec = document.getElementById(sectionId);
+  if(!sec) return;
+  sec.querySelectorAll('input,select,textarea').forEach(el=>{
+    el.disabled = disabled;
+  });
+}
+
+function switchDomain(domain, btn){
+  currentDomain = domain;
+  document.getElementById('domainInput').value = domain;
+  // Pills
+  document.querySelectorAll('.domain-pill').forEach(p=>{
+    p.classList.remove('active','active-bank','active-hr');
+  });
+  if(domain==='Bank')      btn.classList.add('active-bank');
+  else if(domain==='HR')   btn.classList.add('active-hr');
+  else                     btn.classList.add('active');
+  // Form sections — show active, hide others
+  document.querySelectorAll('.form-section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('form-'+domain).classList.add('active');
+  // CRITICAL: disable fields in inactive sections so they don't submit
+  ['Telecom','Bank','HR'].forEach(d=>{
+    disableSection('form-'+d, d !== domain);
+  });
+  // Desc
+  document.getElementById('domainDesc').textContent = DOMAIN_DESC[domain];
+  // Behavior labels
+  const bv = DOMAIN_BV[domain];
+  document.getElementById('bv1l').textContent = bv.lbl1;
+  document.getElementById('bv2l').textContent = bv.lbl2;
+  document.getElementById('bv3l').textContent = bv.lbl3;
+  document.getElementById('bv1').textContent='—';
+  document.getElementById('bv2').textContent='—';
+  document.getElementById('bv3').textContent='—';
+  updateSubmitBadge();
+}
+
+// ══ MODEL SELECT ═══════════════════════════════════════════════
+const MODEL_META = {
+  ensemble:{name:'Voting Ensemble',acc:'~79%',auc:'~85%',prec:'~76%',rec:'~72%',f1:'~74%'},
+  rf:      {name:'Random Forest', acc:'~80%',auc:'~87%',prec:'~79%',rec:'~70%',f1:'~74%'},
+  et:      {name:'Extra Trees',   acc:'~79%',auc:'~86%',prec:'~78%',rec:'~69%',f1:'~73%'},
+  gb:      {name:'Gradient Boost',acc:'~81%',auc:'~88%',prec:'~80%',rec:'~71%',f1:'~75%'},
+  lr:      {name:'Logistic Reg.', acc:'~74%',auc:'~82%',prec:'~72%',rec:'~68%',f1:'~70%'},
+  svm:     {name:'SVM',           acc:'~76%',auc:'~83%',prec:'~74%',rec:'~65%',f1:'~69%'},
+  ada:     {name:'AdaBoost',      acc:'~77%',auc:'~84%',prec:'~75%',rec:'~69%',f1:'~72%'},
+};
+
+function selectModel(btn, key){
+  currentModel = key;
+  document.getElementById('selectedModel').value = key;
+  document.querySelectorAll('.model-pill').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  const bar=document.getElementById('modelStatsBar')||document.querySelector('.model-stats-bar');
+  const m=MODEL_META[key];
+  const anim=(id,v)=>{const el=document.getElementById(id);if(!el)return;el.style.opacity='0';setTimeout(()=>{el.textContent=v;el.style.opacity='1';},150);};
+  anim('statName',m.name);anim('statAcc',m.acc);anim('statAUC',m.auc);
+  anim('statPrec',m.prec);anim('statRec',m.rec);anim('statF1',m.f1);
+  updateSubmitBadge();
+}
+function updateSubmitBadge(){
+  const m=MODEL_META[currentModel];
+  document.getElementById('submitBadge').textContent='['+currentDomain+' · '+(m?m.name:'Ensemble')+']';
+}
+
+// ══ BEHAVIOR PANEL ═════════════════════════════════════════════
+function updateBehavior(){
+  if(currentDomain==='Telecom'){
+    const contract=document.getElementById('contract').value;
+    document.getElementById('bv1').textContent=['🔴 HIGH','🟡 MED','🟢 LOW'][parseInt(contract)]||'—';
+    const tenure=parseInt(document.getElementById('tenure').value)||0;
+    document.getElementById('bv2').textContent=tenure>0?(tenure<=6?'🔴 HIGH':tenure<=18?'🟡 MED':'🟢 LOW'):'—';
+    const svcIds=['phone','ml','inet','osec','obk','dp2','ts','stv','smv'];
+    const cnt=svcIds.filter(id=>{const v=document.getElementById(id).value;return v==='1'||v==='2';}).length;
+    document.getElementById('bv3').textContent=cnt>0?cnt+' / 9':'—';
+  } else if(currentDomain==='Bank'){
+    const cs=parseInt(document.getElementById('b_credit').value)||0;
+    document.getElementById('bv1').textContent=cs>0?(cs<580?'🔴 HIGH':cs<670?'🟡 MED':'🟢 LOW'):'—';
+    const age=parseInt(document.getElementById('b_age').value)||0;
+    document.getElementById('bv2').textContent=age>0?(age>=45&&age<=60?'🔴 HIGH':age>60?'🟡 MED':'🟢 LOW'):'—';
+    const act=document.getElementById('b_active').value;
+    document.getElementById('bv3').textContent=act===''?'—':(act==='1'?'🟢 Active':'🔴 Inactive');
+  } else if(currentDomain==='HR'){
+    const ot=document.getElementById('hr_overtime').value;
+    document.getElementById('bv1').textContent=ot===''?'—':(ot==='1'?'🔴 HIGH RISK':'🟢 LOW RISK');
+    const yac=parseInt(document.getElementById('hr_yac').value)||0;
+    document.getElementById('bv2').textContent=yac>0?(yac<=2?'🔴 HIGH':yac<=5?'🟡 MED':'🟢 LOW'):'—';
+    const jsat=parseInt(document.getElementById('hr_jsat').value)||0;
+    document.getElementById('bv3').textContent=jsat>0?(jsat===1?'🔴 Low':jsat===2?'🟡 Medium':'🟢 High'):'—';
+  }
+}
+
+// ══ AUTO TOTAL (Telecom) ════════════════════════════════════════
+function autoTotal(){
+  const t=parseFloat(document.getElementById('tenure').value)||0;
+  const mc=parseFloat(document.getElementById('mc').value)||0;
+  if(t>0&&mc>0) document.getElementById('tc').value=(t*mc).toFixed(2);
+}
+
+// ══ RESET ══════════════════════════════════════════════════════
+function resetAll(){
+  setTimeout(()=>{
+    const tc=document.getElementById('tc');if(tc)tc.value='';
+    document.getElementById('bv1').textContent='—';
+    document.getElementById('bv2').textContent='—';
+    document.getElementById('bv3').textContent='—';
+  },50);
+}
+
+// ══ FLASH AUTO-DISMISS ═════════════════════════════════════════
+document.querySelectorAll('.flash').forEach(el=>{
+  setTimeout(()=>{el.style.opacity='0';el.style.transform='translateX(30px)';},4500);
+  setTimeout(()=>el.remove(),5000);
+});
+
+// Init — disable inactive sections on page load
+['Telecom','HR'].forEach(d => disableSection('form-'+d, true));
+selectModel(document.querySelector('.model-pill.active'),'ensemble');
+// Update submit badge for default Bank domain
+updateSubmitBadge();
+</script>
+</body>
+</html>
